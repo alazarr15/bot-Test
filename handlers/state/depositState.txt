@@ -1,0 +1,3 @@
+// state/depositState.js
+const depositInputState = new Map();
+module.exports = { depositInputState };

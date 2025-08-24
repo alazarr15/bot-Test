@@ -1,0 +1,257 @@
+const User = require("../Model/user");
+const { registrationInProgress } = require("../commands/register");
+
+// Map to track users in deposit input mode and their state
+const depositInProgress = new Map();
+
+module.exports = function (bot) {
+  // /deposit command handler - start deposit flow
+  bot.command("deposit", async (ctx) => {
+    try {
+      const telegramId = ctx.from.id;
+      const user = await User.findOne({ telegramId });
+
+      if (!user) {
+        return ctx.reply(
+          "🚫 You must register first to make a deposit. Please click below to register:",
+          {
+            reply_markup: {
+              inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]],
+            },
+          }
+        );
+      }
+
+      // Start deposit input mode for this user
+      depositInProgress.set(telegramId, { attempts: 0 });
+
+      // Ask user to input amount or cancel
+      await ctx.reply(
+        "💰 Please enter the amount you want to deposit (or type CANCEL to abort).\n\n" +
+          "Or select a quick amount below:",
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "100 Birr", callback_data: "deposit_100" }],
+              [{ text: "200 Birr", callback_data: "deposit_200" }],
+              [{ text: "300 Birr", callback_data: "deposit_300" }],
+              [{ text: "400 Birr", callback_data: "deposit_400" }],
+            ],
+          },
+        }
+      );
+
+      // Set a 2-minute timeout to clear depositInProgress for user
+      setTimeout(() => {
+        if (depositInProgress.has(telegramId)) {
+          depositInProgress.delete(telegramId);
+          ctx.reply(
+            "⌛ Deposit request timed out due to inactivity. Please /deposit again to start over."
+          );
+        }
+      }, 2 * 60 * 1000); // 2 minutes timeout
+    } catch (err) {
+      console.error("❌ Error in /deposit:", err.message);
+      return ctx.reply("🚫 An error occurred. Please try again.");
+    }
+  });
+
+  // Handle inline button callbacks and deposit amounts
+  bot.on("callback_query", async (ctx) => {
+    const telegramId = ctx.from.id;
+    const data = ctx.callbackQuery?.data;
+
+    // Always answer callback queries immediately to avoid "loading" spinner
+    await ctx.answerCbQuery();
+
+    // Handle REGISTER button
+    if (data === "register") {
+      const user = await User.findOne({ telegramId });
+      if (user) {
+        return ctx.reply(`ℹ️ Registered as *${user.username}*`, {
+          parse_mode: "Markdown",
+        });
+      }
+
+      registrationInProgress[telegramId] = { step: 1 };
+      return ctx.reply("📲 Please share your contact by clicking the button below.", {
+        reply_markup: {
+          keyboard: [[{ text: "📞 Share Contact", request_contact: true }]],
+          one_time_keyboard: true,
+          resize_keyboard: true,
+        },
+      });
+    }
+
+    // Handle demo game selection buttons
+    if (data.startsWith("game_")) {
+      const gameChoice = data.split("_")[1];
+      await User.findOneAndUpdate({ telegramId }, { demoChoice: gameChoice });
+
+      const websiteURL = `https://bingo21.netlify.app/?user=${telegramId}&game=${gameChoice}`;
+      return ctx.reply(`✅ You selected *${gameChoice} Birr*! Click below to continue:`, {
+        reply_markup: {
+          inline_keyboard: [[{ text: "Go to Mini App", web_app: { url: websiteURL } }]],
+          parse_mode: "Markdown",
+        },
+      });
+    }
+
+    // Handle support button
+    if (data === "support") {
+      const supportLink = `https://t.me/Mikyyetklyelij`;
+      return ctx.reply(`📞 Need help? Contact support here: [Support Chat](${supportLink})`, {
+        parse_mode: "Markdown",
+      });
+    }
+
+    // Handle invite button
+    if (data === "invite") {
+      const inviteLink = `https://t.me/bossbingobot?start=${telegramId}`;
+      return ctx.reply(`📨 Here is your invite link: ${inviteLink}`);
+    }
+
+    // Handle registered main menu button
+    if (data === "registered") {
+      const user = await User.findOne({ telegramId });
+      return ctx.reply(`ℹ️ Registered as *${user.username}*`, {
+        parse_mode: "Markdown",
+      });
+    }
+
+    // Handle deposit buttons: either 'deposit' or 'deposit_XXX' for fixed amounts
+    if (data === "deposit" || /^deposit_\d+$/.test(data)) {
+      const user = await User.findOne({ telegramId });
+
+      if (!user) {
+        return ctx.reply(
+          "🚫 You must register first to make a deposit. Please click below to register:",
+          {
+            reply_markup: {
+              inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]],
+            },
+          }
+        );
+      }
+
+      // If just "deposit" clicked, prompt again for amount input with fixed buttons fallback
+      if (data === "deposit") {
+        // Set depositInProgress again (if user comes from menu)
+        depositInProgress.set(telegramId, { attempts: 0 });
+
+        await ctx.reply(
+          "💰 Please enter the amount you want to deposit (or type CANCEL to abort).\n\n" +
+            "Or select a quick amount below:",
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "100 Birr", callback_data: "deposit_100" }],
+                [{ text: "200 Birr", callback_data: "deposit_200" }],
+                [{ text: "300 Birr", callback_data: "deposit_300" }],
+                [{ text: "400 Birr", callback_data: "deposit_400" }],
+              ],
+            },
+          }
+        );
+
+        // Timeout cleanup after 2 minutes
+        setTimeout(() => {
+          if (depositInProgress.has(telegramId)) {
+            depositInProgress.delete(telegramId);
+            ctx.reply(
+              "⌛ Deposit request timed out due to inactivity. Please /deposit again to start over."
+            );
+          }
+        }, 2 * 60 * 1000);
+
+        return;
+      }
+
+      // Handle fixed amount buttons e.g. deposit_100
+      const depositAmount = parseInt(data.split("_")[1]);
+      const tx_ref = `telegram_${telegramId}_${Date.now()}`;
+      const saveAndRedirectUrl = `https://bossbingo.netlify.app/save-and-redirect?tx_ref=${tx_ref}&telegramId=${telegramId}&amount=${depositAmount}`;
+
+      // Clear depositInProgress in case it was set
+      depositInProgress.delete(telegramId);
+
+      await ctx.reply(
+        `💳 You chose to deposit ${depositAmount} Birr.\n\nClick the button below to continue to payment:`,
+        {
+          reply_markup: {
+            inline_keyboard: [[{ text: "🚀 Pay with Chapa", url: saveAndRedirectUrl }]],
+          },
+        }
+      );
+
+      // Return to main menu after deposit option
+      return ctx.reply("🔄 Returning to the main menu:", {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: `✅ Registered as ${user.username}`, callback_data: "registered" }],
+            [{ text: "🎮 Play Demo", callback_data: "playdemo" }],
+            [
+              { text: "💰 Check Balance", callback_data: "balance" },
+              { text: "💳 Deposit", callback_data: "deposit" },
+            ],
+            [
+              { text: "📞 Contact Support", callback_data: "support" },
+              { text: "📖 Instruction", callback_data: "not_available" },
+            ],
+            [{ text: "📨 Invite", callback_data: "invite" }],
+          ],
+        },
+      });
+    }
+  });
+
+  // Handle text messages while deposit input mode active
+  bot.on("text", async (ctx) => {
+    const telegramId = ctx.from.id;
+    const text = ctx.message.text.trim();
+
+    // Only process if user is in deposit input mode
+    if (!depositInProgress.has(telegramId)) {
+      return;
+    }
+
+    // User wants to cancel
+    if (/^cancel$/i.test(text)) {
+      depositInProgress.delete(telegramId);
+      return ctx.reply("❌ Deposit cancelled. You can /deposit anytime to start again.");
+    }
+
+    // Validate amount input
+    const amount = parseFloat(text);
+    if (isNaN(amount) || amount <= 0) {
+      const state = depositInProgress.get(telegramId);
+      state.attempts++;
+      depositInProgress.set(telegramId, state);
+
+      if (state.attempts >= 3) {
+        depositInProgress.delete(telegramId);
+        return ctx.reply(
+          "🚫 Too many invalid attempts. Deposit cancelled. Please try /deposit again."
+        );
+      } else {
+        return ctx.reply(
+          "⚠️ Please enter a valid positive number for the deposit amount or type CANCEL to abort."
+        );
+      }
+    }
+
+    // Valid amount received, clear deposit state
+    depositInProgress.delete(telegramId);
+
+    const saveAndRedirectUrl = `https://bossbingo.netlify.app/save-and-redirect?telegramId=${telegramId}&amount=${amount}`;
+
+    await ctx.reply(
+      `💳 You chose to deposit ${amount} Birr.\n\nClick the button below to continue to payment:`,
+      {
+        reply_markup: {
+          inline_keyboard: [[{ text: "🚀 Pay with Chapa", url: saveAndRedirectUrl }]],
+        },
+      }
+    );
+  });
+};

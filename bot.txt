@@ -1,0 +1,623 @@
+https://chatgpt.com/share/682e38b0-48cc-8009-a119-5ae84285a8bc
+
+onst { Telegraf } = require("telegraf");
+const mongoose = require("mongoose");
+const dotenv = require("dotenv");
+const User = require("./Model/user");
+const path = require("path");
+const LOGO_PATH = path.join(__dirname, "images", "bossbingos.webp");
+dotenv.config();
+
+const bot = new Telegraf(process.env.BOT_TOKEN);
+
+
+
+// ✅ Connect to MongoDB
+mongoose.connect(process.env.MONGO_URI, {})
+  .then(() => console.log("✅ Connected to MongoDB"))
+  .catch(err => console.error("❌ MongoDB Connection Error:", err));
+
+// Temporary object to track registration steps
+let registrationInProgress = {};
+
+// Add this part right after defining the bot
+bot.telegram.setMyCommands([
+    { command: "start", description: "Start the bot" },
+    { command: "playdemo", description: "Start playing demo game" },
+    { command: "register", description: "Register for an account" },
+    { command: "balance", description: "Check account balance" },
+    { command: "deposit", description: "Deposit funds" },
+    { command: "invite", description: "Invite friends" },
+    { command: "support", description: "Contact support" },
+    { command: "instruction", description: "View instructions" },
+    { command: "transfer_funds", description: "Transfer funds" },
+    { command:"change_username", description: "change_username" }
+
+]).then(() => {
+    console.log("✅ Menu button commands set successfully!");
+}).catch((err) => {
+    console.error("❌ Error setting menu button commands:", err);
+});
+
+
+
+
+bot.command("register", async (ctx) => {
+    const telegramId = ctx.from.id;
+    let user = await User.findOne({ telegramId });
+
+    if (user) {
+        return ctx.reply(`ℹ️ Registered as *${user.username}*`, { parse_mode: "Markdown" });
+    }
+
+    registrationInProgress[telegramId] = { step: 1 };
+    return ctx.reply("📲 Please share your contact by clicking the button below.", {
+        reply_markup: {
+            keyboard: [
+                [{ text: "📞 Share Contact", request_contact: true }]
+            ],
+            one_time_keyboard: true,
+            resize_keyboard: true
+        }
+    });
+});
+
+
+bot.command("change_username", async (ctx) => {
+    const telegramId = ctx.from.id;
+    let user = await User.findOne({ telegramId });
+
+    if (user) {
+        return ctx.reply(`ℹ️ Registered as *${user.username}*`, { parse_mode: "Markdown" });
+    }
+
+    registrationInProgress[telegramId] = { step: 1 };
+    return ctx.reply("📲 Please share your contact by clicking the button below.", {
+        reply_markup: {
+            keyboard: [
+                [{ text: "📞 Share Contact", request_contact: true }]
+            ],
+            one_time_keyboard: true,
+            resize_keyboard: true
+        }
+    });
+});
+
+
+
+bot.command("playdemo", async (ctx) => {
+    return ctx.reply("🎮 Choose your demo game:", {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "10 Birr", callback_data: "game_10" }],
+                [{ text: "20 Birr", callback_data: "game_20" }],
+                [{ text: "30 Birr", callback_data: "game_30" }],
+                [{ text: "40 Birr", callback_data: "game_40" }]
+            ]
+        }
+    });
+});
+
+bot.command("balance", async (ctx) => {
+    const telegramId = ctx.from.id;
+    let user = await User.findOne({ telegramId });
+
+    if (!user) {
+        return ctx.reply("🚫 You must register first to check your balance. Please click below to register:", {
+            reply_markup: {
+                inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
+            }
+        });
+    }
+
+    return ctx.reply(`💰 Your current balance is: *${user.balance} Birr*`, { parse_mode: "Markdown" });
+});
+
+
+bot.command("deposit", async (ctx) => {
+    const telegramId = ctx.from.id;
+    let user = await User.findOne({ telegramId });
+
+    if (!user) {
+        // If the user is not registered, prompt to register first
+        return ctx.reply("🚫 You must register first to make a deposit. Please click below to register:", {
+            reply_markup: {
+                inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
+            }
+        });
+    }
+
+    // If the user is registered, proceed to deposit choices
+    return ctx.reply("💳 Choose your deposit amount:", {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "100 Birr", callback_data: "deposit_100" }],
+                [{ text: "200 Birr", callback_data: "deposit_200" }],
+                [{ text: "300 Birr", callback_data: "deposit_300" }],
+                [{ text: "400 Birr", callback_data: "deposit_400" }]
+            ]
+        }
+    });
+});
+
+
+bot.command("invite", async (ctx) => {
+    const telegramId = ctx.from.id;
+    const inviteLink = `https://t.me/bossbingobot?start=${telegramId}`;
+
+    return ctx.reply(`📨 Here is your invite link: ${inviteLink}`);
+});
+
+bot.command("support", async (ctx) => {
+    const supportUsername = "Mikyyetklyelij"; // Telegram username without @
+    const supportLink = `https://t.me/${supportUsername}`;
+
+    return ctx.reply(`📞 Need help? Contact support here: [Support Chat](${supportLink})`, {
+        parse_mode: "Markdown"
+    });
+});
+
+
+bot.command("instruction", async (ctx) => {
+    return ctx.reply("🚫 The instruction feature is not available yet.");
+});
+
+// 📌 Handle game selection manually
+bot.command(["game_10", "game_20", "game_30", "game_40"], async (ctx) => {
+    const telegramId = ctx.from.id;
+    const gameChoice = ctx.message.text.replace("/game_", ""); // Extract game number
+
+    await User.findOneAndUpdate({ telegramId }, { demoChoice: gameChoice });
+
+    const websiteURL = `https://bingo21.netlify.app/?user=${telegramId}&game=${gameChoice}`;
+
+    return ctx.reply(
+        `✅ You selected *${gameChoice} Birr*! Click below to continue:`,
+        {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "Go to Mini App", web_app: { url: websiteURL } }]
+                ]
+            },
+            parse_mode: "Markdown"
+        }
+    );
+});
+
+// Handle deposit transaction (when a deposit option is selected)
+
+bot.action(/^deposit_\d+$/, async (ctx) => {
+    const telegramId = ctx.from.id;
+    const depositAmount = parseInt(ctx.callbackQuery.data.split("_")[1]); // Extract deposit amount from callback_data
+
+    let user = await User.findOne({ telegramId });
+
+    if (!user) {
+        // If the user is not registered, prompt to register first
+        return ctx.reply("🚫 You must register first to make a deposit. Please click below to register:", {
+            reply_markup: {
+                inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
+            }
+        });
+    }
+
+    // Update the user's balance with the deposit amount
+    user.balance = (user.balance || 0) + depositAmount; // Add deposit to the existing balance
+    await user.save();
+
+    // Send success message
+    await ctx.reply(`✅ You have successfully deposited *${depositAmount} Birr*. Your new balance is *${user.balance} Birr*.`, {
+        parse_mode: "Markdown"
+    });
+
+    // Now return to the main menu after the deposit message
+    const mainMenu = {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: `✅ Registered as ${user.username}`, callback_data: "registered" }],
+                [{ text: "🎮 Play Demo", callback_data: "playdemo" }],
+                [{ text: "💰 Check Balance", callback_data: "balance" }, { text: "💳 Deposit", callback_data: "deposit" }],
+                [{ text: "📞 Contact Support", callback_data: "support" }, { text: "📖 Instruction", callback_data: "not_available" }],
+                [{ text: "📨 Invite", callback_data: "invite" }]
+            ]
+        }
+    };
+
+    // Reply with the main menu after deposit is successful
+    return ctx.reply("🔄 Returning to the main menu:", mainMenu);
+});
+
+
+
+bot.command("transfer_funds", async (ctx) => {
+    const telegramId = ctx.from.id;
+    let user = await User.findOne({ telegramId });
+
+    if (!user) {
+        return ctx.reply("🚫 You must register first to transfer funds.");
+    }
+
+    // Initialize transfer process in MongoDB
+    await User.updateOne({ telegramId }, { 
+        $set: { "transferInProgress": { step: 1, recipient: null, amount: 0 } } 
+    });
+
+    return ctx.reply("🔢 Please enter the recipient's **account number**:");
+});
+
+bot.on("text", async (ctx) => {
+    try {
+        const telegramId = ctx.from.id;
+        const message = ctx.message.text.trim().toLowerCase();
+
+        let user = await User.findOne({ telegramId });
+        if (!user) {
+            // Handle if the user is not registered and is trying to interact before registering
+            registrationInProgress[telegramId] = { step: 1 };
+            
+            // Send registration message with a button to register
+            return ctx.reply(
+                "👋 Welcome! Please register first to access the demo. Click the button below to register.",
+                {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "🔐 Register", callback_data: "register" }]
+                        ]
+                    }
+                }
+            );
+        }
+        
+
+        // Check if the user is in the middle of a transfer
+        if (user.transferInProgress) {
+            // Handle '/cancel' action properly
+            if (message === "/cancel") {
+                // Reset transfer state immediately
+                await User.updateOne({ telegramId }, { $unset: { "transferInProgress": 1 } });
+
+                const mainMenu = {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: `✅ Registered as ${user.username}`, callback_data: "registered" }],
+                            [{ text: "🎮 Play Demo", callback_data: "playdemo" }],
+                            [{ text: "💰 Check Balance", callback_data: "balance" }, { text: "💳 Deposit", callback_data: "deposit" }],
+                            [{ text: "📞 Contact Support", callback_data: "support" }, { text: "📖 Instruction", callback_data: "not_available" }],
+                            [{ text: "📨 Invite", callback_data: "invite" }]
+                        ]
+                    }
+                };
+
+                return ctx.reply("❌ Transfer canceled. Returning to the main menu.", mainMenu);
+            }
+
+            if (user.transferInProgress.step === 1) {
+                // Step 1: Enter recipient's account number
+                const recipientAccountNumber = message.replace(/\s+/g, '');
+                let recipient = await User.findOne({ accountNumber: recipientAccountNumber });
+
+                if (!recipient) {
+                    return ctx.reply("🚫 Recipient not found. Please check the account number.");
+                }
+
+                // Proceed to Step 2
+                await User.updateOne({ telegramId }, { 
+                    $set: { "transferInProgress.recipient": recipientAccountNumber, "transferInProgress.step": 2 } 
+                });
+
+                return ctx.reply("💵 Enter the amount you wish to transfer:");
+            }
+
+            if (user.transferInProgress.step === 2) {
+                // Step 2: Handle transfer amount
+                const transferAmount = parseFloat(message);
+
+                if (isNaN(transferAmount) || transferAmount <= 0) {
+                    return ctx.reply("🚫 Invalid amount. Please enter a valid number.");
+                }
+
+                if (user.balance < transferAmount) {
+                    return ctx.reply("🚫 Insufficient balance. Type /cancel to cancel the process.");
+                }
+
+                let recipient = await User.findOne({ accountNumber: user.transferInProgress.recipient });
+
+                if (!recipient) {
+                    return ctx.reply("🚫 Unexpected error: Recipient not found.");
+                }
+
+                // Perform the transfer
+                await User.updateOne({ telegramId }, { $inc: { balance: -transferAmount } });
+                await User.updateOne({ accountNumber: recipient.accountNumber }, { $inc: { balance: transferAmount } });
+
+                // Send success message
+                await ctx.reply(`✅ Transferred **${transferAmount} Birr** to account **${recipient.accountNumber}**.`);
+
+                // Notify recipient if they have a Telegram account
+                if (recipient.telegramId) {
+                    try {
+                        await ctx.telegram.sendMessage(
+                            recipient.telegramId,
+                            `✅ You received **${transferAmount} Birr** from account **${user.accountNumber}**.`
+                        );
+                    } catch (err) {
+                        console.error("⚠️ Failed to notify recipient:", err.message);
+                    }
+                }
+
+                // Reset transfer session after successful transfer
+                await User.updateOne({ telegramId }, { $unset: { "transferInProgress": 1 } });
+
+                // Go back to the main menu immediately after transfer completion
+                const mainMenu = {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: `✅ Registered as ${user.username}`, callback_data: "registered" }],
+                            [{ text: "🎮 Play Demo", callback_data: "playdemo" }],
+                            [{ text: "💰 Check Balance", callback_data: "balance" }, { text: "💳 Deposit", callback_data: "deposit" }],
+                            [{ text: "📞 Contact Support", callback_data: "support" }, { text: "📖 Instruction", callback_data: "not_available" }],
+                            [{ text: "📨 Invite", callback_data: "invite" }]
+                        ]
+                    }
+                };
+                return ctx.reply("🔄 Transfer complete. Returning to the main menu:", mainMenu);
+            }
+        }
+
+        // Handle other commands like '/start', '/playdemo', '/balance', '/deposit'
+        if (message === "/start") {
+            const mainMenu = {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: `✅ Registered as ${user.username}`, callback_data: "registered" }],
+                        [{ text: "🎮 Play Demo", callback_data: "playdemo" }],
+                        [{ text: "💰 Check Balance", callback_data: "balance" }, { text: "💳 Deposit", callback_data: "deposit" }],
+                        [{ text: "📞 Contact Support", callback_data: "support" }, { text: "📖 Instruction", callback_data: "not_available" }],
+                        [{ text: "📨 Invite", callback_data: "invite" }]
+                    ]
+                }
+            };
+            return ctx.reply("🔄 Returning to the main menu.", mainMenu);
+        }
+
+        if (message === "/playdemo" || message === "/balance" || message === "/deposit") {
+            const mainMenu = {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: `✅ Registered as ${user.username}`, callback_data: "registered" }],
+                        [{ text: "🎮 Play Demo", callback_data: "playdemo" }],
+                        [{ text: "💰 Check Balance", callback_data: "balance" }, { text: "💳 Deposit", callback_data: "deposit" }],
+                        [{ text: "📞 Contact Support", callback_data: "support" }, { text: "📖 Instruction", callback_data: "not_available" }],
+                        [{ text: "📨 Invite", callback_data: "invite" }]
+                    ]
+                }
+            };
+            return ctx.reply("🔄 Returning to the main menu.", mainMenu);
+        }
+
+    } catch (error) {
+        console.error("❌ ERROR in bot:", error.message);
+        ctx.reply("🚫 An error occurred. Please try again.");
+    }
+});
+
+
+
+
+// 📌 /START Command: Display welcome message with buttons
+bot.start(async (ctx) => {
+    try {
+        const telegramId = ctx.from.id;
+        let user = await User.findOne({ telegramId });
+
+        const mainMenu = {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: `✅ Registered as ${user ? user.username : "Guest"}`, callback_data: "registered" }],
+                    [{ text: "🎮 Play Demo", callback_data: "playdemo" }],
+                    [{ text: "💰 Check Balance", callback_data: "balance" }, { text: "💳 Deposit", callback_data: "deposit" }],
+                    [{ text: "📞 Contact Support", callback_data: "support" }, { text: "📖 Instruction", callback_data: "not_available" }],
+                    [{ text: "📨 Invite", callback_data: "invite" }]
+                ]
+            }
+        };
+
+        // 📌 Send the Boss Bingo Logo
+        await ctx.replyWithPhoto({ source: LOGO_PATH });
+
+        
+        if (user) {
+            await ctx.reply("👋 Welcome! Choose an option below.", mainMenu);
+        } else {
+            await ctx.reply(
+                "👋 Welcome! Please register first to access the demo. Click the button below to register.",
+                {
+                    reply_markup: {
+                        inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
+                    }
+                }
+            );
+        }
+    } catch (error) {
+        console.error("Error in /start command:", error);
+    }
+});
+
+
+// 📌 Handle "Not Available" actions
+// 📌 Handle "Not Available" actions
+bot.action("not_available", async (ctx) => {
+    const telegramId = ctx.from.id;
+    let user = await User.findOne({ telegramId });
+
+    const mainMenu = {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: `✅ Registered as ${user ? user.username : "Guest"}`, callback_data: "registered" }],
+                [{ text: "🎮 Play Demo", callback_data: "playdemo" }],
+                [{ text: "💰 Check Balance", callback_data: "not_available" }, { text: "💳 Deposit", callback_data: "not_available" }],
+                [{ text: "📞 Contact Support", callback_data: "not_available" }, { text: "📖 Instruction", callback_data: "not_available" }],
+                [{ text: "📨 Invite", callback_data: "not_available" }]
+            ]
+        }
+    };
+
+    await ctx.answerCbQuery("🚫 Not available");
+    await ctx.reply("🚫 This feature is not available yet.", mainMenu);
+});
+
+// 📌 REGISTER USER Process
+bot.on("callback_query", async (ctx) => {
+    const telegramId = ctx.from.id;
+    const data = ctx.callbackQuery.data;
+    
+    if (data === "register") {
+        let user = await User.findOne({ telegramId });
+        if (user) {
+            return ctx.reply(`ℹ️ Registered as *${user.username}*`, { parse_mode: "Markdown" });
+        }
+        registrationInProgress[telegramId] = { step: 1 };
+        return ctx.reply("📲 Please share your contact by clicking the button below.", {
+            reply_markup: {
+                keyboard: [
+                    [{ text: "📞 Share Contact", request_contact: true }]
+                ],
+                one_time_keyboard: true,
+                resize_keyboard: true
+            }
+        });
+    } else if (data === "playdemo") {
+        return ctx.reply("🎮 Choose your demo game:", {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "10 Birr", callback_data: "game_10" }],
+                    [{ text: "20 Birr", callback_data: "game_20" }],
+                    [{ text: "30 Birr", callback_data: "game_30" }],
+                    [{ text: "40 Birr", callback_data: "game_40" }]
+                ]
+            }
+        });
+    } else if (data === "balance") {
+        const user = await User.findOne({ telegramId });
+        if (!user) {
+            return ctx.reply("🚫 You must register first to check your balance. Please click below to register:", {
+                reply_markup: {
+                    inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
+                }
+            });
+        }
+    
+        return ctx.reply(`💰 Your current balance is: *${user.balance} Birr*`, { parse_mode: "Markdown" });
+    }
+    else if (data.startsWith("deposit")) {
+        const telegramId = ctx.from.id;
+    let user = await User.findOne({ telegramId });
+
+    if (!user) {
+        // If the user is not registered, prompt to register first
+        return ctx.reply("🚫 You must register first to make a deposit. Please click below to register:", {
+            reply_markup: {
+                inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
+            }
+        });
+    }
+
+    // If the user is registered, proceed to deposit choices
+    return ctx.reply("💳 Choose your deposit amount:", {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "100 Birr", callback_data: "deposit_100" }],
+                [{ text: "200 Birr", callback_data: "deposit_200" }],
+                [{ text: "300 Birr", callback_data: "deposit_300" }],
+                [{ text: "400 Birr", callback_data: "deposit_400" }]
+            ]
+        }
+    });
+
+
+
+    }else if (data === "support") {
+        const supportUsername = "Mikyyetklyelij"; // Telegram username of support
+        const supportLink = `https://t.me/${supportUsername}`;
+        
+        return ctx.reply(`📞 Need help? Contact support here: [Support Chat](${supportLink})`, {
+            parse_mode: "Markdown"
+        });
+    }   else if (data === "invite") {
+        const telegramId = ctx.from.id;
+        const inviteLink = `https://t.me/bossbingobot?start=${telegramId}`; // Generate the invite link
+    
+        return ctx.reply(`📨 Here is your invite link: ${inviteLink}`);
+    }
+      
+    else if (data.startsWith("game_")) {
+        // Extract game number from callback_data (e.g., "10" from "game_10")
+        const gameChoice = data.split("_")[1]; 
+        await User.findOneAndUpdate({ telegramId }, { demoChoice: gameChoice });
+
+        const websiteURL = `https://bingo21.netlify.app/?user=${telegramId}&game=${gameChoice}`;
+
+        ctx.reply(
+            `✅ You selected *${gameChoice} Birr*! Click below to continue:`,
+            {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: "Go to Mini App", web_app: { url: websiteURL } }]
+                    ]
+                },
+                parse_mode: "Markdown"
+            }
+        );
+    }
+});
+
+// Handle contact for registration
+bot.on("contact", async (ctx) => {
+    const telegramId = ctx.from.id;
+    let user = await User.findOne({ telegramId });
+
+    if (!registrationInProgress[telegramId]) return;
+    
+    const phoneNumber = ctx.message.contact.phone_number;  
+
+    let accountNumber;
+    let isUnique = false;
+    while (!isUnique) {
+        accountNumber = Math.floor(100000 + Math.random() * 900000);
+        const existingUser = await User.findOne({ accountNumber });
+        if (!existingUser) isUnique = true;
+    }
+    
+    const newUser = new User({ 
+        telegramId, 
+        username: ctx.from.first_name, 
+        accountNumber, 
+        phoneNumber 
+    });
+    await newUser.save();
+    delete registrationInProgress[telegramId];
+
+
+    await ctx.reply("✅ Your contact has been received.", {
+        reply_markup: {
+            remove_keyboard: true // This removes the contact-sharing button
+        }
+    });
+
+
+    return ctx.reply(`✅ Registration successful! Your account number: *${accountNumber}*`, {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: `✅ Registered as ${user ? user.username : "Guest"}`, callback_data: "registered" }],
+                [{ text: "🎮 Play Demo", callback_data: "playdemo" }],
+                [{ text: "💰 Check Balance", callback_data: "balance" }, { text: "💳 Deposit", callback_data: "deposit" }],
+                [{ text: "📞 Contact Support", callback_data: "support" }, { text: "📖 Instruction", callback_data: "not_available" }],
+                [{ text: "📨 Invite", callback_data: "invite" }]
+            ]
+        },
+        parse_mode: "Markdown"
+    });
+});
+
+// 🚀 START THE BOT
+bot.launch().then(() => console.log("🤖 Bot is live!"));
