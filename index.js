@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const express = require("express");
 const bot = require("./bot"); // import your bot instance
 
-mongoose.connect(process.env.MONGO_URI, {})
+mongoose.connect(process.env.MONGODB_URI, {})
   .then(() => console.log("✅ Connected to MongoDB"))
   .catch(err => console.error("❌ MongoDB Connection Error:", err));
 

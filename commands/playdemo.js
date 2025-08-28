@@ -26,7 +26,7 @@ module.exports = function (bot) {
     return ctx.reply("🎮 Choose your demo game:", {
       reply_markup: {
         inline_keyboard: [
-          [{ text: "10 Birr", web_app: { url: `https://bossbingo.netlify.app/?user=${telegramId}&game=10` } }],
+          [{ text: "10 Birr", web_app: { url: `https://www.bingoogame.com/?user=${telegramId}&game=10` } }],
           [{ text: "20 Birr", web_app: { url: `https://bossbingo.netlify.app/?user=${telegramId}&game=20` } }],
           [{ text: "30 Birr", web_app: { url: `https://bossbingo.netlify.app/?user=${telegramId}&game=30` } }],
           [{ text: "40 Birr", web_app: { url: `https://bossbingo.netlify.app/?user=${telegramId}&game=40` } }]
