@@ -30,7 +30,8 @@ const opts = {
     }
 };
 
-// Keypad mapping for login PIN
+
+
 const KEYPAD = {
     "0": "cn.tydic.ethiopay:id/tv_input_0",
     "1": "cn.tydic.ethiopay:id/tv_input_1",
@@ -44,63 +45,64 @@ const KEYPAD = {
     "9": "cn.tydic.ethiopay:id/tv_input_9"
 };
 
-// Enter PIN (login or transaction)
-async function enterPin(driver, pin, isTransaction = false) {
+// Helper to enter login PIN
+async function enterPin(driver, pin) {
     for (let digit of pin) {
-        let btn;
-        if (isTransaction) {
-            btn = await driver.$(`android=new UiSelector().resourceId("cn.tydic.ethiopay:id/tv_key").text("${digit}")`);
-        } else {
-            btn = await driver.$(`id=${KEYPAD[digit]}`);
-        }
-        await btn.waitForDisplayed({ timeout: 10000 });
+        const btn = await driver.$(`id=${KEYPAD[digit]}`);
         await btn.click();
     }
 }
 
-// Detect current page
-async function detectPage(driver) {
-    try {
-        if (await driver.$("id=cn.tydic.ethiopay:id/btn_next").isDisplayed().catch(() => false)) {
-            return "login";
+// Helper to enter transaction PIN
+async function enterTransactionPin(driver, pin) {
+    for (let digit of pin) {
+        const btn = await driver.$(`android=new UiSelector().resourceId("cn.tydic.ethiopay:id/tv_key").text("${digit}")`);
+        if (await btn.isDisplayed() && await btn.isEnabled()) {
+            await btn.click();
+        } else {
+            throw new Error(`PIN key ${digit} not found or not clickable`);
         }
-        if (await driver.$("id=cn.tydic.ethiopay:id/rl_function_container").isDisplayed().catch(() => false)) {
-            return "sendMoney";
-        }
-        if (await driver.$("id=cn.tydic.ethiopay:id/et_amount").isDisplayed().catch(() => false)) {
-            return "amount";
-        }
-        if (await driver.$('android=new UiSelector().resourceId("cn.tydic.ethiopay:id/tv_key").text("1")').isDisplayed().catch(() => false)) {
-            return "transactionPin";
-        }
-        return "unknown";
-    } catch {
-        return "unknown";
     }
 }
 
-// Main process
-async function processTelebirrWithdrawal({ amount, account_number }) {
-    let driver;
-    const result = { status: "", message: "", data: null };
+// Helper to detect current page
+async function detectPage(driver) {
+    if (await driver.$("id=cn.tydic.ethiopay:id/btn_next").isDisplayed().catch(() => false)) {
+        return "login";
+    }
+    if (await driver.$("id=cn.tydic.ethiopay:id/et_amount").isDisplayed().catch(() => false)) {
+        return "amount";
+    }
+    if (await driver.$('android=new UiSelector().resourceId("cn.tydic.ethiopay:id/tv_key").text("1")').isDisplayed().catch(() => false)) {
+        return "transactionPin";
+    }
+    if (await driver.$("id=cn.tydic.ethiopay:id/rl_function_container").isDisplayed().catch(() => false)) {
+        return "sendMoney";
+    }
+    return "unknown";
+}
 
+async function main() {
+    let driver;
     try {
         driver = await wdio.remote(opts);
         console.log("✅ App launched successfully");
 
+        // Flow loop
         let flowComplete = false;
         while (!flowComplete) {
-            const page = await detectPage(driver);
-            console.log("Current page:", page);
+            const currentPage = await detectPage(driver);
 
-            switch (page) {
+            switch (currentPage) {
                 case "login":
+                    console.log("🔹 Login page detected");
                     const loginNextBtn = await driver.$("id=cn.tydic.ethiopay:id/btn_next");
                     await loginNextBtn.click();
                     await enterPin(driver, TELETIRR_LOGIN_PIN);
                     break;
 
                 case "sendMoney":
+                    console.log("🔹 Send Money page detected");
                     const sendMoneyBtn = await driver.$("id=cn.tydic.ethiopay:id/rl_function_container");
                     await sendMoneyBtn.click();
 
@@ -115,13 +117,14 @@ async function processTelebirrWithdrawal({ amount, account_number }) {
                     break;
 
                 case "amount":
+                    console.log("🔹 Amount page detected");
                     const amountInputWrapper = await driver.$("id=cn.tydic.ethiopay:id/et_amount_click_view");
                     await amountInputWrapper.click();
 
                     const amountInput = await driver.$("id=cn.tydic.ethiopay:id/et_amount");
-                    await amountInput.setValue(String(amount));
+                    await amountInput.setValue(String(amount)); // set any amount here
 
-                    // Tap OK using coordinates if necessary
+                    // Tap OK using coordinates
                     await driver.performActions([{
                         type: 'pointer',
                         id: 'finger1',
@@ -139,31 +142,34 @@ async function processTelebirrWithdrawal({ amount, account_number }) {
                     break;
 
                 case "transactionPin":
-                    await enterPin(driver, TELETIRR_LOGIN_PIN, true);
+                    console.log("🔹 Transaction PIN page detected");
+                    await enterTransactionPin(driver, TELETIRR_LOGIN_PIN);
+
                     const finishedBtn = await driver.$("id=cn.tydic.ethiopay:id/btn_confirm");
                     await finishedBtn.click();
-                    flowComplete = true;
+                    flowComplete = true; // transaction done
                     break;
 
                 default:
-                    throw new Error("Unknown page detected, cannot continue");
+                    throw new Error("Unknown page detected, cannot continue automation");
             }
         }
 
+             // If reached here, transaction is successful
         result.status = "success";
         result.message = "Transaction completed successfully";
         result.data = { phone: account_number, amount: amount };
-        console.log("✅ Transaction successful");
 
     } catch (err) {
-        console.error("❌ Error:", err);
+        console.error("❌ Error during automation:", err);
         result.status = "fail";
         result.message = err.message || "Unknown error";
         result.data = { error: err.toString() };
     } finally {
         if (driver) await driver.deleteSession();
         console.log("Session ended");
-        return result;
+        console.log(JSON.stringify(result, null, 2));
+        return result; // can be captured by other modules
     }
 }
 
