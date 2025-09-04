@@ -166,7 +166,7 @@ module.exports = function (bot) {
                                 telegramId,
                                 amount,
                                 account_number,
-                                withdrawalRecordId: savedWithdrawal._id // Pass the DB record ID
+                                withdrawalRecordId: savedWithdrawal.tx_ref  // Pass the DB record ID
                             });
                         } else {
                             // For other banks, you can handle them as a direct process or via a different worker

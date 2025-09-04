@@ -5,10 +5,10 @@ const wdio = require("webdriverio");
 
 // ⚠️ SECURITY: Use environment variables for sensitive info
 const TELETIRR_LOGIN_PIN = process.env.TELEBIRR_LOGIN_PIN;
-const TELETIRR_PHONE = process.env.TELEBIRR_PHONE;
+const TELETIRR_PHONE = process.env.TELETIRR_PHONE;
 
 if (!TELETIRR_LOGIN_PIN || !TELETIRR_PHONE) {
-    throw new Error("Missing required environment variables: TELEBIRR_LOGIN_PIN or TELEBIRR_PHONE.");
+    throw new Error("Missing required environment variables: TELEBIRR_LOGIN_PIN or TELETIRR_PHONE.");
 }
 
 // WebdriverIO/Appium options
@@ -65,23 +65,6 @@ async function enterTransactionPin(driver, pin) {
     }
 }
 
-// Helper to detect current page
-async function detectPage(driver) {
-    if (await driver.$("id=cn.tydic.ethiopay:id/btn_next").isDisplayed().catch(() => false)) {
-        return "login";
-    }
-    if (await driver.$("id=cn.tydic.ethiopay:id/et_amount").isDisplayed().catch(() => false)) {
-        return "amount";
-    }
-    if (await driver.$('android=new UiSelector().resourceId("cn.tydic.ethiopay:id/tv_key").text("1")').isDisplayed().catch(() => false)) {
-        return "transactionPin";
-    }
-    if (await driver.$("id=cn.tydic.ethiopay:id/rl_function_container").isDisplayed().catch(() => false)) {
-        return "sendMoney";
-    }
-    return "unknown";
-}
-
 async function processTelebirrWithdrawal({amount, account_number}) {
     let driver;
     const result = {
@@ -93,76 +76,69 @@ async function processTelebirrWithdrawal({amount, account_number}) {
         driver = await wdio.remote(opts);
         console.log("✅ App launched successfully");
 
-        // Flow loop
-        let flowComplete = false;
-        while (!flowComplete) {
-            const currentPage = await detectPage(driver);
+        // --- Step 1: Login ---
+        console.log("🔹 Logging in...");
+        const loginNextBtn = await driver.$("id=cn.tydic.ethiopay:id/btn_next");
+        await loginNextBtn.click();
+        await enterPin(driver, TELETIRR_LOGIN_PIN);
 
-            switch (currentPage) {
-                case "login":
-                    console.log("🔹 Login page detected");
-                    const loginNextBtn = await driver.$("id=cn.tydic.ethiopay:id/btn_next");
-                    await loginNextBtn.click();
-                    await enterPin(driver, TELETIRR_LOGIN_PIN);
-                    await driver.$("id=cn.tydic.ethiopay:id/rl_function_container").waitForDisplayed({ timeout: 3000 });
-                    break;
+        // Wait for the main page to load with a longer timeout
+        console.log("⏱️ Waiting for main screen to load...");
+        const mainPageBtn = await driver.$("id=cn.tydic.ethiopay:id/rl_function_container");
+        await mainPageBtn.waitForDisplayed({ timeout: 15000 });
+        console.log("✅ Main screen loaded.");
 
-                case "sendMoney":
-                    console.log("🔹 Send Money page detected");
-                    const sendMoneyBtn = await driver.$("id=cn.tydic.ethiopay:id/rl_function_container");
-                    await sendMoneyBtn.waitForDisplayed({ timeout: 2000 });
-                    await sendMoneyBtn.click();
+        // --- Step 2: Navigate to Send Money ---
+        console.log("🔹 Navigating to 'Send Money'...");
+        await mainPageBtn.click();
 
-                    const individualBtn = await driver.$("//android.view.ViewGroup[@clickable='true']");
-                    await individualBtn.click();
+        // Wait for the individual transfer button to be displayed
+        const individualBtn = await driver.$("//android.view.ViewGroup[@clickable='true']");
+        await individualBtn.waitForDisplayed({ timeout: 5000 });
+        await individualBtn.click();
 
-                    const phoneInput = await driver.$("id=cn.tydic.ethiopay:id/et_input");
-                    await phoneInput.setValue(account_number);
+        // --- Step 3: Enter recipient details ---
+        console.log("🔹 Entering recipient details...");
+        const phoneInput = await driver.$("id=cn.tydic.ethiopay:id/et_input");
+        await phoneInput.waitForDisplayed({ timeout: 5000 });
+        await phoneInput.setValue(account_number);
 
-                    const nextPhoneBtn = await driver.$("id=cn.tydic.ethiopay:id/btn_next");
-                    await nextPhoneBtn.click();
-                    break;
+        const nextPhoneBtn = await driver.$("id=cn.tydic.ethiopay:id/btn_next");
+        await nextPhoneBtn.click();
 
-                case "amount":
-                    console.log("🔹 Amount page detected");
-                    const amountInputWrapper = await driver.$("id=cn.tydic.ethiopay:id/et_amount_click_view");
-                    await amountInputWrapper.click();
+        // --- Step 4: Enter amount ---
+        console.log("🔹 Entering amount...");
+        const amountInput = await driver.$("id=cn.tydic.ethiopay:id/et_amount");
+        await amountInput.waitForDisplayed({ timeout: 5000 });
+        await amountInput.setValue(String(amount));
 
-                    const amountInput = await driver.$("id=cn.tydic.ethiopay:id/et_amount");
-                    await amountInput.setValue(String(amount)); // set any amount here
+        // Tap OK using coordinates
+        console.log("🔹 Tapping OK button...");
+        await driver.performActions([{
+            type: 'pointer',
+            id: 'finger1',
+            parameters: { pointerType: 'touch' },
+            actions: [
+                { type: 'pointerMove', duration: 0, x: 942, y: 2050 },
+                { type: 'pointerDown', button: 0 },
+                { type: 'pointerUp', button: 0 }
+            ]
+        }]);
+        await driver.releaseActions();
 
-                    // Tap OK using coordinates
-                    await driver.performActions([{
-                        type: 'pointer',
-                        id: 'finger1',
-                        parameters: { pointerType: 'touch' },
-                        actions: [
-                            { type: 'pointerMove', duration: 0, x: 942, y: 2050 },
-                            { type: 'pointerDown', button: 0 },
-                            { type: 'pointerUp', button: 0 }
-                        ]
-                    }]);
-                    await driver.releaseActions();
+        const sendBtn = await driver.$("id=cn.tydic.ethiopay:id/confirm");
+        await sendBtn.click();
 
-                    const sendBtn = await driver.$("id=cn.tydic.ethiopay:id/confirm");
-                    await sendBtn.click();
-                    break;
+        // --- Step 5: Enter transaction PIN and confirm ---
+        console.log("🔹 Entering transaction PIN...");
+        const transactionPinKeypad = await driver.$('android=new UiSelector().resourceId("cn.tydic.ethiopay:id/tv_key").text("1")');
+        await transactionPinKeypad.waitForDisplayed({ timeout: 5000 });
+        await enterTransactionPin(driver, TELETIRR_LOGIN_PIN);
 
-                case "transactionPin":
-                    console.log("🔹 Transaction PIN page detected");
-                    await enterTransactionPin(driver, TELETIRR_LOGIN_PIN);
+        const finishedBtn = await driver.$("id=cn.tydic.ethiopay:id/btn_confirm");
+        await finishedBtn.click();
 
-                    const finishedBtn = await driver.$("id=cn.tydic.ethiopay:id/btn_confirm");
-                    await finishedBtn.click();
-                    flowComplete = true; // transaction done
-                    break;
-
-                default:
-                    throw new Error("Unknown page detected, cannot continue automation");
-            }
-        }
-
-             // If reached here, transaction is successful
+        // If reached here, transaction is successful
         result.status = "success";
         result.message = "Transaction completed successfully";
         result.data = { phone: account_number, amount: amount };
@@ -179,5 +155,4 @@ async function processTelebirrWithdrawal({amount, account_number}) {
         return result; // can be captured by other modules
     }
 }
-
 module.exports = { processTelebirrWithdrawal };
