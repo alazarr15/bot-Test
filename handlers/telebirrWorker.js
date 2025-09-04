@@ -14,8 +14,10 @@ if (!TELETIRR_LOGIN_PIN || !TELETIRR_PHONE) {
 }
 
 const opts = {
-    path: '/',
+    protocol: 'http',
+    hostname: '188.245.100.132',
     port: 4723,
+    path: '/',
     capabilities: {
         alwaysMatch: {
             platformName: "Android",
