@@ -15,7 +15,7 @@ if (!TELETIRR_LOGIN_PIN || !TELETIRR_PHONE) {
 
 const opts = {
     protocol: 'http',
-    hostname: '127.0.0.1',  // ✅ Use localhost since container is in host network
+    hostname: '188.245.100.132',  // ✅ Use localhost since container is in host network
     port: 4723,
     path: '/wd/hub',
     capabilities: {
