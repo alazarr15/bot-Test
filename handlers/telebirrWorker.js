@@ -16,7 +16,7 @@ const opts = {
     protocol: 'http',
     hostname: '188.245.100.132', // Appium server host
     port: 4723,
-    path: '/wd/hub',
+    path: '/',
     capabilities: {
         alwaysMatch: {
             platformName: "Android",
