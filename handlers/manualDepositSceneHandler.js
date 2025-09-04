@@ -114,8 +114,8 @@ const manualDepositScene = new Scenes.WizardScene(
       depositType = "CBE";
       instructions = `
 🏦 **CBE Bank Account Details**
-Account Name: BINGO GAMES P.L.C.
-Account Number: 1000346782342
+Account Name: BINGO GAMES 
+Account Number: 1000454544246
 Amount: ${amount} ETB
 
 Please transfer the amount to the above account and then **forward the confirmation message or a screenshot of the transaction** to this chat. (Type /cancel to exit)`;
