@@ -15,16 +15,13 @@ if (!TELETIRR_LOGIN_PIN || !TELETIRR_PHONE) {
 
 const opts = {
     protocol: 'http',
-    hostname: '188.245.100.132',
+    hostname: '127.0.0.1',  // ✅ Use localhost since container is in host network
     port: 4723,
     path: '/wd/hub',
     capabilities: {
         alwaysMatch: {
             platformName: "Android",
-            // The device name should be the IP and port of the adb connection
-            // The value "192.168.1.4:5555" should be updated to a dynamic value
-            // based on your ADB setup (e.g., your VPN IP and port).
-            "appium:deviceName": "10.0.0.4:38999",
+            "appium:deviceName": "10.0.0.4:38999", // Keep this same if adb connect is correct
             "appium:automationName": "UiAutomator2",
             "appium:appPackage": "cn.tydic.ethiopay",
             "appium:appActivity": "com.huawei.module_basic_ui.splash.LauncherActivity",
@@ -33,6 +30,7 @@ const opts = {
         }
     }
 };
+
 
 // Helper for login PIN keypad. This looks correct.
 const KEYPAD = {
