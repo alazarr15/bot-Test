@@ -82,7 +82,7 @@ async function detectPage(driver) {
     return "unknown";
 }
 
-async function processTelebirrWithdrawal() {
+async function processTelebirrWithdrawal({amount, account_number}) {
     let driver;
     const result = {
         status: "",
@@ -109,6 +109,7 @@ async function processTelebirrWithdrawal() {
                 case "sendMoney":
                     console.log("🔹 Send Money page detected");
                     const sendMoneyBtn = await driver.$("id=cn.tydic.ethiopay:id/rl_function_container");
+                    await sendMoneyBtn.waitForDisplayed({ timeout: 2000 });
                     await sendMoneyBtn.click();
 
                     const individualBtn = await driver.$("//android.view.ViewGroup[@clickable='true']");
