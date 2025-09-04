@@ -18,14 +18,9 @@ const telebirrWithdrawalQueue = [];
 // This ensures that the next task is only processed AFTER the previous one has
 // completed, preventing concurrency issues with the single automation device.
 const processQueue = (bot) => {
-  // We'll use a local queue for this example, but in a real-world scenario,
-  // this would likely be a database-backed or dedicated message queue.
-  const telebirrWithdrawalQueue = [];
-
   const processNextTask = async () => {
-    // Check if there are any tasks to process.
     if (telebirrWithdrawalQueue.length > 0) {
-      const task = telebirrWithdrawalQueue.shift(); // Get and remove the next task from the queue
+      const task = telebirrWithdrawalQueue.shift(); // Get the next task
       const { telegramId, amount, account_number, withdrawalRecordId } = task;
 
       console.log(`🚀 Starting Telebirr withdrawal task for user ${telegramId}`);
@@ -37,7 +32,7 @@ const processQueue = (bot) => {
         // 🔍 Log the full response for debugging
         console.log("🔍 Telebirr API result:", JSON.stringify(result, null, 2));
 
-        // Normalize result based on a success message or specific status
+        // Normalize result
         const isSuccess =
           result?.status === "success" ||
           result?.message?.toLowerCase().includes("completed");
@@ -46,17 +41,14 @@ const processQueue = (bot) => {
         const withdrawalRecord = await Withdrawal.findById(withdrawalRecordId);
         if (withdrawalRecord) {
           withdrawalRecord.status = isSuccess ? "completed" : "failed";
-          // Use a logical OR to fall back to the existing tx_ref if the new one is not available
           withdrawalRecord.tx_ref = result?.data?.tx_ref || withdrawalRecord.tx_ref;
           await withdrawalRecord.save();
-          console.log(`✅ Updated withdrawal record status to '${withdrawalRecord.status}' for ID: ${withdrawalRecordId}`);
-        } else {
-          console.error(`❌ Withdrawal record not found for ID: ${withdrawalRecordId}`);
         }
 
-        // Send Telegram message to the user
+        // Send Telegram message
         if (isSuccess) {
-          console.log(`✅ Withdrawal of ${amount} Birr succeeded for user ${telegramId}`);
+            await bot.telegram.sendMessage(`✅ Withdrawal success, notifying user ${telegramId}`)
+              console.log(`✅ Withdrawal succes for ${amount}`);
           try {
             await bot.telegram.sendMessage(
               Number(telegramId),
@@ -67,7 +59,7 @@ const processQueue = (bot) => {
             console.error(`❌ Failed to send success message to ${telegramId}:`, msgErr);
           }
         } else {
-          console.log(`❌ Withdrawal of ${amount} Birr failed for user ${telegramId}`);
+          console.log(`❌ Withdrawal failed, notifying user ${telegramId}`);
           try {
             await bot.telegram.sendMessage(
               Number(telegramId),
@@ -79,29 +71,28 @@ const processQueue = (bot) => {
           }
         }
       } catch (err) {
-        console.error(`🔥 An unexpected error occurred while processing withdrawal for user ${telegramId}:`, err);
+        console.error(`🔥 Error processing withdrawal for ${telegramId}:`, err);
 
-        // Send a failure message to the user if an exception occurs
+        // Send failure message if something crashes
         try {
-          await bot.telegram.sendMessage(
-            Number(telegramId),
-            `🚫 An internal error occurred while processing your withdrawal. Please contact support.`,
-            { parse_mode: "Markdown" }
-          );
+        //   await bot.telegram.sendMessage(
+        //     Number(telegramId),
+        //     `🚫 An error occurred while processing your withdrawal. Please contact support.`,
+        //     { parse_mode: "Markdown" }
+        //   );
         } catch (msgErr) {
           console.error(`❌ Failed to send error message to ${telegramId}:`, msgErr);
         }
       }
     }
 
-    // Schedule the next check after a delay to prevent a busy loop
+    // Process next task after a delay
     setTimeout(processNextTask, 5000);
   };
 
   console.log("🔄 Starting Telebirr withdrawal queue processor...");
   processNextTask();
 };
-
 
 
 
