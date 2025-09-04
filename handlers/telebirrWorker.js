@@ -115,9 +115,9 @@ async function processTelebirrWithdrawal({ amount, account_number }) {
                     await sendMoneyBtn.waitForExist();
                     await sendMoneyBtn.click();
 
-                    const individualBtn = await driver.$("//android.widget.TextView[@resource-id='cn.tydic.ethiopay:id/title' and @text='Individual recipient']");
-                    await individualBtn.waitForExist();
-                    await individualBtn.click();
+                   const individualBtn = await driver.$("//android.view.ViewGroup[@clickable='true']");
+                   await individualBtn.click();
+
 
                     const phoneInput = await driver.$("id=cn.tydic.ethiopay:id/et_input");
                     await phoneInput.waitForExist();
