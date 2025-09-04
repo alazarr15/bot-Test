@@ -6,7 +6,7 @@ const Withdrawal = require("../Model/withdrawal");
 const { registrationInProgress } = require("./state/registrationState");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 const { userWithdrawalStates } = require("./state/withdrawalState");
-const { processTelebirrWithdrawal } = require('./telebirrWorker_updated'); // ⚠️ UPDATED import to match the Canvas file.
+const { processTelebirrWithdrawal } = require('./telebirrWorker'); // ⚠️ UPDATED import to match the Canvas file.
 
 
 // This array will act as a simple in-memory queue.
