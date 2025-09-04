@@ -84,6 +84,11 @@ async function detectPage(driver) {
 
 async function processTelebirrWithdrawal() {
     let driver;
+    const result = {
+        status: "",
+        message: "",
+        data: null
+    };
     try {
         driver = await wdio.remote(opts);
         console.log("✅ App launched successfully");
