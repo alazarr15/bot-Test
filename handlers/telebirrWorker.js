@@ -104,6 +104,7 @@ async function processTelebirrWithdrawal({amount, account_number}) {
                     const loginNextBtn = await driver.$("id=cn.tydic.ethiopay:id/btn_next");
                     await loginNextBtn.click();
                     await enterPin(driver, TELETIRR_LOGIN_PIN);
+                    await driver.$("id=cn.tydic.ethiopay:id/rl_function_container").waitForDisplayed({ timeout: 3000 });
                     break;
 
                 case "sendMoney":

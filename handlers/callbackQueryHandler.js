@@ -18,57 +18,81 @@ const telebirrWithdrawalQueue = [];
 // This ensures that the next task is only processed AFTER the previous one has
 // completed, preventing concurrency issues with the single automation device.
 const processQueue = (bot) => {
-    const processNextTask = async () => {
-        if (telebirrWithdrawalQueue.length > 0) {
-            const task = telebirrWithdrawalQueue.shift(); // Get the next task
-            const { telegramId, amount, account_number, withdrawalRecordId } = task;
+  const processNextTask = async () => {
+    if (telebirrWithdrawalQueue.length > 0) {
+      const task = telebirrWithdrawalQueue.shift(); // Get the next task
+      const { telegramId, amount, account_number, withdrawalRecordId } = task;
 
-            console.log(`🚀 Starting Telebirr withdrawal task for user ${telegramId}`);
+      console.log(`🚀 Starting Telebirr withdrawal task for user ${telegramId}`);
 
-            try {
-                // Here, you would call a function from your separate worker file.
-                // Since we're in one code block, we'll import and call it directly.
-                const result = await processTelebirrWithdrawal({ amount, account_number });
+      try {
+        // Call Telebirr withdrawal processor
+        const result = await processTelebirrWithdrawal({ amount, account_number });
 
-                // Update the database record based on the result
-                const withdrawalRecord = await Withdrawal.findById(withdrawalRecordId);
-                if (withdrawalRecord) {
-                    withdrawalRecord.status = result.status === "success" ? "completed" : "failed";
-                    withdrawalRecord.tx_ref = result.data?.tx_ref || withdrawalRecord.tx_ref;
-                    await withdrawalRecord.save();
-                }
+        // 🔍 Log the full response for debugging
+        console.log("🔍 Telebirr API result:", JSON.stringify(result, null, 2));
 
-                // Notify the user of the outcome
-                if (result.status === "success") {
-                    await bot.telegram.sendMessage(telegramId,
-                        `✅ Your withdrawal of *${amount} Birr* to Telebirr has been completed successfully!`,
-                        { parse_mode: 'Markdown' });
-                } else {
-                    await bot.telegram.sendMessage(telegramId,
-                        `🚫 Your withdrawal of *${amount} Birr* to Telebirr failed. Please try again later.`,
-                        { parse_mode: 'Markdown' });
-                    console.error("❌ Telebirr withdrawal failed:", result.message);
-                }
+        // Normalize result
+        const isSuccess =
+          result?.status === "success" ||
+          result?.message?.toLowerCase().includes("completed");
 
-            } catch (error) {
-                console.error("❌ Error processing Telebirr withdrawal from queue:", error);
-                // Handle potential errors and notify the user
-                const withdrawalRecord = await Withdrawal.findById(withdrawalRecordId);
-                if (withdrawalRecord) {
-                    withdrawalRecord.status = "failed";
-                    await withdrawalRecord.save();
-                    await bot.telegram.sendMessage(telegramId,
-                        "🚫 An error occurred while processing your withdrawal. Please contact support.");
-                }
-            }
+        // Update withdrawal record
+        const withdrawalRecord = await Withdrawal.findById(withdrawalRecordId);
+        if (withdrawalRecord) {
+          withdrawalRecord.status = isSuccess ? "completed" : "failed";
+          withdrawalRecord.tx_ref = result?.data?.tx_ref || withdrawalRecord.tx_ref;
+          await withdrawalRecord.save();
         }
-        // Recursively call the function after a delay, ensuring one task runs at a time
-        setTimeout(processNextTask, 5000);
-    };
 
-    // Start the queue processing loop
-    processNextTask();
+        // Send Telegram message
+        if (isSuccess) {
+          console.log(`✅ Withdrawal success, notifying user ${telegramId}`);
+          try {
+            await bot.telegram.sendMessage(
+              Number(telegramId),
+              `✅ Your withdrawal of *${amount} Birr* to Telebirr has been completed successfully!`,
+              { parse_mode: "Markdown" }
+            );
+          } catch (msgErr) {
+            console.error(`❌ Failed to send success message to ${telegramId}:`, msgErr);
+          }
+        } else {
+          console.log(`❌ Withdrawal failed, notifying user ${telegramId}`);
+          try {
+            await bot.telegram.sendMessage(
+              Number(telegramId),
+              `🚫 Your withdrawal of *${amount} Birr* to Telebirr failed. Please try again later.`,
+              { parse_mode: "Markdown" }
+            );
+          } catch (msgErr) {
+            console.error(`❌ Failed to send failure message to ${telegramId}:`, msgErr);
+          }
+        }
+      } catch (err) {
+        console.error(`🔥 Error processing withdrawal for ${telegramId}:`, err);
+
+        // Send failure message if something crashes
+        try {
+          await bot.telegram.sendMessage(
+            Number(telegramId),
+            `🚫 An error occurred while processing your withdrawal. Please contact support.`,
+            { parse_mode: "Markdown" }
+          );
+        } catch (msgErr) {
+          console.error(`❌ Failed to send error message to ${telegramId}:`, msgErr);
+        }
+      }
+    }
+
+    // Process next task after a delay
+    setTimeout(processNextTask, 5000);
+  };
+
+  console.log("🔄 Starting Telebirr withdrawal queue processor...");
+  processNextTask();
 };
+
 
 
 module.exports = function (bot) {
