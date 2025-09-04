@@ -17,7 +17,7 @@ const opts = {
     protocol: 'http',
     hostname: '188.245.100.132',
     port: 4723,
-    path: '/',
+    path: '/wd/hub',
     capabilities: {
         alwaysMatch: {
             platformName: "Android",
