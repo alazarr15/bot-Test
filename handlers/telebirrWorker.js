@@ -82,7 +82,7 @@ async function detectPage(driver) {
     return "unknown";
 }
 
-async function main() {
+async function processTelebirrWithdrawal() {
     let driver;
     try {
         driver = await wdio.remote(opts);
