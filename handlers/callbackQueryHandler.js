@@ -6,31 +6,25 @@ const Withdrawal = require("../Model/withdrawal");
 const { registrationInProgress } = require("./state/registrationState");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 const { userWithdrawalStates } = require("./state/withdrawalState");
-const { processTelebirrWithdrawal } = require('./telebirrWorker');
+const { processTelebirrWithdrawal } = require('./telebirrWorker_updated'); // ⚠️ UPDATED import to match the Canvas file.
 
-
-// ⚠️ We no longer require WebdriverIO here.
-// The automation logic is moved to a separate worker file.
-// const wdio = require("webdriverio");
 
 // This array will act as a simple in-memory queue.
 // In a production environment, you would use a dedicated message queue service like
 // RabbitMQ, Redis Bull, or a cloud-based service like AWS SQS.
 const telebirrWithdrawalQueue = [];
 
-// This function simulates a worker process by checking the queue periodically.
-// In a real-world scenario, this would be a separate microservice.
+// ⚠️ IMPROVEMENT: Replaced setInterval with a recursive function call.
+// This ensures that the next task is only processed AFTER the previous one has
+// completed, preventing concurrency issues with the single automation device.
 const processQueue = (bot) => {
-    // Check the queue every 5 seconds for new tasks
-    setInterval(async () => {
-        // Only process one item at a time to prevent concurrency issues with the single device
+    const processNextTask = async () => {
         if (telebirrWithdrawalQueue.length > 0) {
             const task = telebirrWithdrawalQueue.shift(); // Get the next task
             const { telegramId, amount, account_number, withdrawalRecordId } = task;
 
             console.log(`🚀 Starting Telebirr withdrawal task for user ${telegramId}`);
 
-            // Simulate sending the task to the worker
             try {
                 // Here, you would call a function from your separate worker file.
                 // Since we're in one code block, we'll import and call it directly.
@@ -46,12 +40,12 @@ const processQueue = (bot) => {
 
                 // Notify the user of the outcome
                 if (result.status === "success") {
-                    await bot.telegram.sendMessage(telegramId, 
-                        `✅ Your withdrawal of *${amount} Birr* to Telebirr has been completed successfully!`, 
+                    await bot.telegram.sendMessage(telegramId,
+                        `✅ Your withdrawal of *${amount} Birr* to Telebirr has been completed successfully!`,
                         { parse_mode: 'Markdown' });
                 } else {
-                    await bot.telegram.sendMessage(telegramId, 
-                        `🚫 Your withdrawal of *${amount} Birr* to Telebirr failed. Please try again later.`, 
+                    await bot.telegram.sendMessage(telegramId,
+                        `🚫 Your withdrawal of *${amount} Birr* to Telebirr failed. Please try again later.`,
                         { parse_mode: 'Markdown' });
                     console.error("❌ Telebirr withdrawal failed:", result.message);
                 }
@@ -63,12 +57,17 @@ const processQueue = (bot) => {
                 if (withdrawalRecord) {
                     withdrawalRecord.status = "failed";
                     await withdrawalRecord.save();
-                    await bot.telegram.sendMessage(telegramId, 
+                    await bot.telegram.sendMessage(telegramId,
                         "🚫 An error occurred while processing your withdrawal. Please contact support.");
                 }
             }
         }
-    }, 5000); // Check every 5 seconds
+        // Recursively call the function after a delay, ensuring one task runs at a time
+        setTimeout(processNextTask, 5000);
+    };
+
+    // Start the queue processing loop
+    processNextTask();
 };
 
 
@@ -97,7 +96,7 @@ module.exports = function (bot) {
             if (!userState) {
                 return ctx.answerCbQuery("🚫 This conversation has expired. Please start over with /withdraw.");
             }
-            
+
             ctx.answerCbQuery(); // Dismiss the loading indicator on the button
 
             if (userState.step === "selectBank") {
@@ -132,7 +131,7 @@ module.exports = function (bot) {
                             account_number,
                             status: 'pending' // Initial status
                         });
-                        
+
                         // Save the withdrawal to the database immediately
                         const savedWithdrawal = await withdrawal.save();
                         userWithdrawalStates.delete(telegramId);
@@ -149,7 +148,7 @@ module.exports = function (bot) {
                             // For other banks, you can handle them as a direct process or via a different worker
                             // For now, we'll assume they also get a pending status and an admin handles them.
                         }
-                    
+
                     } catch (error) {
                         console.error("❌ Error submitting withdrawal request:", error);
                         userWithdrawalStates.delete(telegramId);
@@ -166,7 +165,7 @@ module.exports = function (bot) {
             }
             return; // Exit after handling a withdrawal callback
         }
-        
+
 
         // Handle /register callback
         if (data === "register") {
