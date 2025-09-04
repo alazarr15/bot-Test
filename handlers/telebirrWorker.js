@@ -4,11 +4,11 @@
 const wdio = require("webdriverio");
 
 // ⚠️ SECURITY: Use environment variables for sensitive info
-const TELETIRR_LOGIN_PIN = process.env.TELEBIRR_LOGIN_PIN;
-const TELETIRR_PHONE = process.env.TELETIRR_PHONE;
+const TELEBIRR_LOGIN_PIN = process.env.TELEBIRR_LOGIN_PIN;
+const TELEBIRR_PHONE = process.env.TELEBIRR_PHONE;
 
-if (!TELETIRR_LOGIN_PIN || !TELETIRR_PHONE) {
-    throw new Error("Missing required environment variables: TELEBIRR_LOGIN_PIN or TELETIRR_PHONE.");
+if (!TELEBIRR_LOGIN_PIN || !TELEBIRR_PHONE) {
+    throw new Error("Missing required environment variables: TELEBIRR_LOGIN_PIN or TELEBIRR_PHONE.");
 }
 
 // WebdriverIO/Appium options
@@ -80,7 +80,7 @@ async function processTelebirrWithdrawal({amount, account_number}) {
         console.log("🔹 Logging in...");
         const loginNextBtn = await driver.$("id=cn.tydic.ethiopay:id/btn_next");
         await loginNextBtn.click();
-        await enterPin(driver, TELETIRR_LOGIN_PIN);
+        await enterPin(driver, TELEBIRR_LOGIN_PIN);
 
         // Wait for the main page to load with a longer timeout
         console.log("⏱️ Waiting for main screen to load...");
@@ -133,7 +133,7 @@ async function processTelebirrWithdrawal({amount, account_number}) {
         console.log("🔹 Entering transaction PIN...");
         const transactionPinKeypad = await driver.$('android=new UiSelector().resourceId("cn.tydic.ethiopay:id/tv_key").text("1")');
         await transactionPinKeypad.waitForDisplayed({ timeout: 5000 });
-        await enterTransactionPin(driver, TELETIRR_LOGIN_PIN);
+        await enterTransactionPin(driver, TELEBIRR_LOGIN_PIN);
 
         const finishedBtn = await driver.$("id=cn.tydic.ethiopay:id/btn_confirm");
         await finishedBtn.click();

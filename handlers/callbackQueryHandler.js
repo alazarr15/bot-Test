@@ -47,7 +47,8 @@ const processQueue = (bot) => {
 
         // Send Telegram message
         if (isSuccess) {
-          console.log(`✅ Withdrawal success, notifying user ${telegramId}`);
+            await bot.telegram.sendMessage(`✅ Withdrawal success, notifying user ${telegramId}`)
+              console.log(`✅ Withdrawal succes for ${amount}`);
           try {
             await bot.telegram.sendMessage(
               Number(telegramId),
@@ -74,11 +75,11 @@ const processQueue = (bot) => {
 
         // Send failure message if something crashes
         try {
-          await bot.telegram.sendMessage(
-            Number(telegramId),
-            `🚫 An error occurred while processing your withdrawal. Please contact support.`,
-            { parse_mode: "Markdown" }
-          );
+        //   await bot.telegram.sendMessage(
+        //     Number(telegramId),
+        //     `🚫 An error occurred while processing your withdrawal. Please contact support.`,
+        //     { parse_mode: "Markdown" }
+        //   );
         } catch (msgErr) {
           console.error(`❌ Failed to send error message to ${telegramId}:`, msgErr);
         }
@@ -166,7 +167,7 @@ module.exports = function (bot) {
                                 telegramId,
                                 amount,
                                 account_number,
-                                withdrawalRecordId: savedWithdrawal.tx_ref  // Pass the DB record ID
+                                withdrawalRecordId: savedWithdrawal._id // Pass the DB record ID
                             });
                         } else {
                             // For other banks, you can handle them as a direct process or via a different worker
