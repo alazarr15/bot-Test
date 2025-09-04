@@ -17,7 +17,7 @@ const opts = {
     protocol: 'http',
     hostname: '188.245.100.132',  // ✅ Use localhost since container is in host network
     port: 4723,
-    path: '/wd/hub',
+    path: '/',
     capabilities: {
         alwaysMatch: {
             platformName: "Android",
