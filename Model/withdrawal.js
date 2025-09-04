@@ -10,7 +10,7 @@ const WithdrawalSchema = new mongoose.Schema({
   currency: { type: String, default: "ETB" },
   status: { 
     type: String, 
-    enum: ["pending", "processing", "paid", "failed", "rejected"], 
+    enum: ['pending', 'in-progress', 'approved', 'rejected', 'completed'],
     default: "pending" 
   },
   reviewed: { type: Boolean, default: false },
