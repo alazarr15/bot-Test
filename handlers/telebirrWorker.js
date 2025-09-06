@@ -46,7 +46,7 @@ const SELECTORS = {
         "8": "id=cn.tydic.ethiopay:id/tv_input_8", "9": "id=cn.tydic.ethiopay:id/tv_input_9",
     },
     MAIN_PAGE_CONTAINER: "id=cn.tydic.ethiopay:id/rl_function_container",
-    SEND_MONEY_BTN: 'android=new UiSelector().className("android.view.ViewGroup").clickable(true).instance(4)',
+    SEND_MONEY_BTN: 'android=new UiSelector().className("android.view.ViewGroup").clickable(true).instance(0)',
     SEND_MONEY_INDIVIDUAL_BTN: 'android=new UiSelector().className("android.view.ViewGroup").clickable(true).instance(0)',
     RECIPIENT_PHONE_INPUT: "id=cn.tydic.ethiopay:id/et_input",
     RECIPIENT_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
