@@ -51,8 +51,7 @@ const SELECTORS = {
     // OPTIMIZED: Replaced slow XPath with a more specific selector.
     // Find a unique ID using Appium Inspector for the best performance.
     // This is an example using UiAutomator if no ID is available.
-    SEND_MONEY_INDIVIDUAL_BTN: 'android=new UiSelector().resourceId("cn.tydic.ethiopay:id/rl_transfer_to_individual")', // Replace with actual ID if available
-    RECIPIENT_PHONE_INPUT: "id=cn.tydic.ethiopay:id/et_input",
+    SEND_MONEY_INDIVIDUAL_BTN: 'new UiSelector().className("android.view.ViewGroup").clickable(true)',    RECIPIENT_PHONE_INPUT: "id=cn.tydic.ethiopay:id/et_input",
     RECIPIENT_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
     AMOUNT_INPUT: "id=cn.tydic.ethiopay:id/et_amount",
     CONFIRM_SEND_BTN: "id=cn.tydic.ethiopay:id/confirm",
