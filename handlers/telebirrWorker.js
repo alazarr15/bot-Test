@@ -22,7 +22,7 @@ const opts = {
     capabilities: {
         alwaysMatch: {
             platformName: "Android",
-            "appium:deviceName": "10.0.0.4:45567",
+            "appium:deviceName": "10.0.0.4:39183",
             "appium:automationName": "UiAutomator2",
             "appium:appPackage": "cn.tydic.ethiopay",
             "appium:appActivity": "com.huawei.module_basic_ui.splash.LauncherActivity",
