@@ -94,7 +94,7 @@ async function navigateToHome(driver) {
     for (let i = 0; i < 4; i++) {
         await driver.back();
         await driver.pause(500); // Reduced pause, just enough for UI to settle
-        if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER)) {
+        if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 3000)) {
             console.log("✅ Successfully returned to home screen.");
             return;
         }
