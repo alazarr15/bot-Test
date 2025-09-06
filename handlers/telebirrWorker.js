@@ -1,5 +1,5 @@
-// telebirrWorker_robust.js
-// VERSION 4.1 - Corrected timeout and selectors
+// telebirrWorker_final.js
+// VERSION 5.0 - Final version with enhanced timeouts for stability on slow connections.
 
 const wdio = require("webdriverio");
 
@@ -11,13 +11,13 @@ if (!TELEBIRR_LOGIN_PIN || !TELEBIRR_PHONE) {
     throw new Error("Missing required environment variables: TELEBIRR_LOGIN_PIN or TELEBIRR_PHONE.");
 }
 
-// WebdriverIO/Appium options with increased timeout for stability
+// WebdriverIO/Appium options with highly generous timeouts for maximum stability
 const opts = {
     protocol: 'http',
     hostname: '188.245.100.132', // Appium server host
     port: 4723,
     path: '/',
-    // ✅ FIX: Corrected timeout to 240000ms (4 minutes) to prevent premature connection errors.
+    // ✅ STABILITY: How long to wait for the initial session connection to be established. (4 minutes)
     connectionRetryTimeout: 240000,
     connectionRetryCount: 1,
     capabilities: {
@@ -28,7 +28,9 @@ const opts = {
             "appium:appPackage": "cn.tydic.ethiopay",
             "appium:appActivity": "com.huawei.module_basic_ui.splash.LauncherActivity",
             "appium:noReset": true,
-            "appium:newCommandTimeout": 300 // 5 minutes
+            // ✅ STABILITY: How long Appium will wait for a new command before closing the session.
+            // Increased to 10 minutes to handle very slow network conditions.
+            "appium:newCommandTimeout": 600
         }
     }
 };
@@ -44,7 +46,7 @@ const SELECTORS = {
         "8": "id=cn.tydic.ethiopay:id/tv_input_8", "9": "id=cn.tydic.ethiopay:id/tv_input_9",
     },
     MAIN_PAGE_CONTAINER: "id=cn.tydic.ethiopay:id/rl_function_container",
-    // ✅ FIX: Added the missing selector for the main "Send Money" button cluster.
+    SEND_MONEY_BTN: 'android=new UiSelector().className("android.view.ViewGroup").clickable(true).instance(4)',
     SEND_MONEY_INDIVIDUAL_BTN: 'android=new UiSelector().className("android.view.ViewGroup").clickable(true).instance(0)',
     RECIPIENT_PHONE_INPUT: "id=cn.tydic.ethiopay:id/et_input",
     RECIPIENT_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
@@ -64,7 +66,7 @@ const SELECTORS = {
  * @param {number} timeout - Timeout in milliseconds.
  * @returns {Promise<boolean>}
  */
-async function isDisplayedWithin(driver, selector, timeout = 10000) {
+async function isDisplayedWithin(driver, selector, timeout = 30000) { // Increased default timeout
     try {
         const element = await driver.$(selector);
         await element.waitForDisplayed({ timeout });
@@ -106,19 +108,17 @@ async function navigateToHome(driver) {
         await (await driver.$(SELECTORS.LOGIN_NEXT_BTN)).click();
     }
 
-    // This checks for the PIN entry screen, which follows the login screen
     if (await isDisplayedWithin(driver, SELECTORS.LOGIN_PIN_KEYPAD["1"], 3000)) {
         await enterPin(driver, TELEBIRR_LOGIN_PIN, false);
-        await driver.$(SELECTORS.MAIN_PAGE_CONTAINER).waitForDisplayed({ timeout: 20000 });
+        await driver.$(SELECTORS.MAIN_PAGE_CONTAINER).waitForDisplayed({ timeout: 45000 }); // Longer wait for login
         console.log("✅ Login successful. On home screen.");
         return;
     }
 
-    // If on an unknown screen, press back up to 4 times to return to home
     console.log("🔹 On an unknown screen. Attempting to go back to home...");
     for (let i = 0; i < 4; i++) {
         await driver.back();
-        await driver.pause(500);
+        await driver.pause(1000); // Slightly longer pause for UI to settle
         if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 2000)) {
             console.log("✅ Successfully returned to home screen via back button.");
             return;
@@ -139,41 +139,24 @@ async function processTelebirrWithdrawal({ amount, account_number }) {
         driver = await wdio.remote(opts);
         console.log("✅ Appium session started.");
 
-        // Step 1: Ensure we are on the home screen
         await navigateToHome(driver);
 
-        // Step 2: Navigate to Send Money
         console.log("🔹 Navigating to 'Send Money'...");
-        const sendMoneyBtn = await driver.$(SELECTORS.SEND_MONEY_BTN);
-        await sendMoneyBtn.click();
+        await (await driver.$(SELECTORS.SEND_MONEY_BTN)).click();
+        await (await driver.$(SELECTORS.SEND_MONEY_INDIVIDUAL_BTN)).click();
 
-        const individualBtn = await driver.$(SELECTORS.SEND_MONEY_INDIVIDUAL_BTN);
-        await individualBtn.waitForDisplayed();
-        await individualBtn.click();
-
-        // Step 3: Enter Recipient Details
         console.log("🔹 Entering recipient details...");
         const phoneInput = await driver.$(SELECTORS.RECIPIENT_PHONE_INPUT);
-        await phoneInput.waitForDisplayed();
         await phoneInput.setValue(account_number);
-
         await (await driver.$(SELECTORS.RECIPIENT_NEXT_BTN)).click();
 
-        // Step 4: Enter Amount and Confirm
         console.log("🔹 Entering amount and confirming...");
         const amountInput = await driver.$(SELECTORS.AMOUNT_INPUT);
-        await amountInput.waitForDisplayed();
         await amountInput.setValue(String(amount));
+        await (await driver.$(SELECTORS.CONFIRM_PAY_BTN)).click();
 
-        const payBtn = await driver.$(SELECTORS.CONFIRM_PAY_BTN);
-        await payBtn.waitForDisplayed();
-        await payBtn.click();
-
-        // Step 5: Enter Transaction PIN
-        await (await driver.$(SELECTORS.TRANSACTION_PIN_KEYPAD("1"))).waitForDisplayed();
+        console.log("🔹 Entering transaction PIN...");
         await enterPin(driver, TELEBIRR_LOGIN_PIN, true);
-
-        // Step 6: Finalize Transaction
         await (await driver.$(SELECTORS.TRANSACTION_FINISHED_BTN)).click();
 
         console.log("✅ Transaction appears to be successful.");
@@ -183,8 +166,8 @@ async function processTelebirrWithdrawal({ amount, account_number }) {
 
     } catch (err) {
         console.error("❌ Error during automation:", err);
-        // ✅ FIX: Reverted status to "fail". Please verify the correct enum value in your Mongoose schema.
-        // It could be "fail", "error", or "failure".
+        // NOTE: Please verify the correct failure status for your database schema.
+        // It could be "fail", "failed", "error", etc.
         result.status = "fail";
         result.message = err.message || "Unknown error";
         result.data = { error: err.toString() };
@@ -192,7 +175,6 @@ async function processTelebirrWithdrawal({ amount, account_number }) {
         if (driver) {
             console.log("🧹 Cleaning up session...");
             try {
-                // Attempt to return to home before closing
                 await navigateToHome(driver);
             } catch (cleanupErr) {
                 console.warn("⚠️ Could not return to home during cleanup:", cleanupErr.message);
@@ -206,4 +188,3 @@ async function processTelebirrWithdrawal({ amount, account_number }) {
 }
 
 module.exports = { processTelebirrWithdrawal };
-
