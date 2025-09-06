@@ -14,13 +14,9 @@ if (!TELEBIRR_LOGIN_PIN || !TELEBIRR_PHONE) {
 // WebdriverIO/Appium options
 const opts = {
     protocol: 'http',
-    // IMPORTANT: For best speed, run this script on the same machine/network as Appium
-    // and change hostname to '127.0.0.1' or a local IP.
-    hostname: '188.245.100.132', 
+    hostname: '188.245.100.132', // Appium server host
     port: 4723,
     path: '/',
-    // NEW: Set a global default timeout for all `waitFor` commands.
-    waitforTimeout: 30000, 
     capabilities: {
         alwaysMatch: {
             platformName: "Android",
@@ -29,10 +25,7 @@ const opts = {
             "appium:appPackage": "cn.tydic.ethiopay",
             "appium:appActivity": "com.huawei.module_basic_ui.splash.LauncherActivity",
             "appium:noReset": true,
-            "appium:newCommandTimeout": 10000,
-            // --- NEW: Performance-boosting capabilities ---
-           // "appium:skipServerInstallation": true, // Skips reinstalling the driver on the device
-           // "appium:disableWindowAnimation": true, // Makes screen transitions instant
+            "appium:newCommandTimeout": 6000
         }
     }
 };
