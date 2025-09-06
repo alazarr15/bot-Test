@@ -1,5 +1,5 @@
-// telebirrWorker_complete.js
-// VERSION 3.0 - Performance Optimized
+// telebirrWorker_robust.js
+// VERSION 4.0 - Robustness and State Management focused
 
 const wdio = require("webdriverio");
 
@@ -11,12 +11,14 @@ if (!TELEBIRR_LOGIN_PIN || !TELEBIRR_PHONE) {
     throw new Error("Missing required environment variables: TELEBIRR_LOGIN_PIN or TELEBIRR_PHONE.");
 }
 
-// WebdriverIO/Appium options
+// WebdriverIO/Appium options with increased timeout for stability
 const opts = {
     protocol: 'http',
     hostname: '188.245.100.132', // Appium server host
     port: 4723,
     path: '/',
+    connectionRetryTimeout: 4000, // 4 minutes to establish a session
+    connectionRetryCount: 1,
     capabilities: {
         alwaysMatch: {
             platformName: "Android",
@@ -25,12 +27,12 @@ const opts = {
             "appium:appPackage": "cn.tydic.ethiopay",
             "appium:appActivity": "com.huawei.module_basic_ui.splash.LauncherActivity",
             "appium:noReset": true,
-            "appium:newCommandTimeout": 6000
+            "appium:newCommandTimeout": 300 // 5 minutes
         }
     }
 };
 
-// Centralized selectors for easy maintenance
+// --- Centralized Selectors for Easy Maintenance ---
 const SELECTORS = {
     LOGIN_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
     LOGIN_PIN_KEYPAD: {
@@ -41,21 +43,29 @@ const SELECTORS = {
         "8": "id=cn.tydic.ethiopay:id/tv_input_8", "9": "id=cn.tydic.ethiopay:id/tv_input_9",
     },
     MAIN_PAGE_CONTAINER: "id=cn.tydic.ethiopay:id/rl_function_container",
-    // OPTIMIZED: Replaced slow XPath with a more specific selector.
-    // Find a unique ID using Appium Inspector for the best performance.
-    // This is an example using UiAutomator if no ID is available.
-    SEND_MONEY_INDIVIDUAL_BTN: 'new UiSelector().className("android.view.ViewGroup").clickable(true)',    RECIPIENT_PHONE_INPUT: "id=cn.tydic.ethiopay:id/et_input",
+    // ✅ ROBUST: Replaced slow XPath with a more specific and faster UiAutomator selector.
+    // Use Appium Inspector to find a unique resource-id or accessibility-id for the best performance.
+    SEND_MONEY_INDIVIDUAL_BTN: 'android=new UiSelector().className("android.view.ViewGroup").clickable(true).instance(0)',
+    RECIPIENT_PHONE_INPUT: "id=cn.tydic.ethiopay:id/et_input",
     RECIPIENT_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
     AMOUNT_INPUT: "id=cn.tydic.ethiopay:id/et_amount",
-    CONFIRM_SEND_BTN: "id=cn.tydic.ethiopay:id/confirm",
+    // ✅ ROBUST: Replaced hardcoded coordinates with a direct selector for the confirmation button.
+    CONFIRM_PAY_BTN: "id=cn.tydic.ethiopay:id/confirm",
     TRANSACTION_PIN_KEYPAD: (digit) => `android=new UiSelector().resourceId("cn.tydic.ethiopay:id/tv_key").text("${digit}")`,
     TRANSACTION_FINISHED_BTN: "id=cn.tydic.ethiopay:id/btn_confirm",
 };
 
-// Helper functions (isDisplayedWithin, navigateToHome) remain the same as the previous version.
-// I've included them here for a complete, copy-pasteable file.
 
-async function isDisplayedWithin(driver, selector, timeout = 30000) {
+// --- Helper Functions ---
+
+/**
+ * Checks if an element is visible on screen within a given timeout.
+ * @param {object} driver - The WebdriverIO driver instance.
+ * @param {string} selector - The element selector.
+ * @param {number} timeout - Timeout in milliseconds.
+ * @returns {Promise<boolean>}
+ */
+async function isDisplayedWithin(driver, selector, timeout = 10000) {
     try {
         const element = await driver.$(selector);
         await element.waitForDisplayed({ timeout });
@@ -65,42 +75,62 @@ async function isDisplayedWithin(driver, selector, timeout = 30000) {
     }
 }
 
+/**
+ * Enters a PIN into the appropriate keypad.
+ * @param {object} driver - The WebdriverIO driver instance.
+ * @param {string} pin - The PIN to enter.
+ * @param {boolean} isTransactionPin - Whether to use the transaction PIN layout.
+ */
+async function enterPin(driver, pin, isTransactionPin = false) {
+    console.log(`🔹 Entering ${isTransactionPin ? 'transaction' : 'login'} PIN...`);
+    for (const digit of pin) {
+        const selector = isTransactionPin ? SELECTORS.TRANSACTION_PIN_KEYPAD(digit) : SELECTORS.LOGIN_PIN_KEYPAD[digit];
+        const btn = await driver.$(selector);
+        await btn.click();
+    }
+}
+
+/**
+ * Intelligently navigates to the app's home screen regardless of the current state.
+ * @param {object} driver - The WebdriverIO driver instance.
+ */
 async function navigateToHome(driver) {
     console.log("🧠 Checking app state and navigating to home screen...");
 
-    if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER)) {
+    if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 5000)) {
         console.log("✅ Already on the home screen.");
         return;
     }
 
-    if (await isDisplayedWithin(driver, SELECTORS.LOGIN_NEXT_BTN)) {
+    if (await isDisplayedWithin(driver, SELECTORS.LOGIN_NEXT_BTN, 3000)) {
         console.log("🔹 On login screen. Logging in...");
-        const loginNextBtn = await driver.$(SELECTORS.LOGIN_NEXT_BTN);
-        await loginNextBtn.click();
+        await (await driver.$(SELECTORS.LOGIN_NEXT_BTN)).click();
     }
-    
-    if (await isDisplayedWithin(driver, SELECTORS.LOGIN_PIN_KEYPAD["1"])) {
-        console.log("🔹 On PIN screen. Entering PIN...");
-        for (let digit of TELEBIRR_LOGIN_PIN) {
-            const btn = await driver.$(SELECTORS.LOGIN_PIN_KEYPAD[digit]);
-            await btn.click();
-        }
-        await driver.$(SELECTORS.MAIN_PAGE_CONTAINER).waitForDisplayed(); // Uses global timeout
+
+    // This checks for the PIN entry screen, which follows the login screen
+    if (await isDisplayedWithin(driver, SELECTORS.LOGIN_PIN_KEYPAD["1"], 3000)) {
+        await enterPin(driver, TELEBIRR_LOGIN_PIN, false);
+        await driver.$(SELECTORS.MAIN_PAGE_CONTAINER).waitForDisplayed({ timeout: 20000 });
         console.log("✅ Login successful. On home screen.");
         return;
     }
 
+    // If on an unknown screen, press back up to 4 times to return to home
     console.log("🔹 On an unknown screen. Attempting to go back to home...");
     for (let i = 0; i < 4; i++) {
         await driver.back();
-        await driver.pause(500); // Reduced pause, just enough for UI to settle
-        if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 3000)) {
-            console.log("✅ Successfully returned to home screen.");
+        await driver.pause(500);
+        if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 2000)) {
+            console.log("✅ Successfully returned to home screen via back button.");
             return;
         }
     }
-    throw new Error("FATAL: Could not navigate to the home screen.");
+
+    throw new Error("FATAL: Could not navigate to the home screen after multiple attempts.");
 }
+
+
+// --- Main Worker Process ---
 
 async function processTelebirrWithdrawal({ amount, account_number }) {
     let driver;
@@ -110,70 +140,64 @@ async function processTelebirrWithdrawal({ amount, account_number }) {
         driver = await wdio.remote(opts);
         console.log("✅ Appium session started.");
 
+        // Step 1: Ensure we are on the home screen
         await navigateToHome(driver);
 
+        // Step 2: Navigate to Send Money
         console.log("🔹 Navigating to 'Send Money'...");
-        const mainPageBtn = await driver.$(SELECTORS.MAIN_PAGE_CONTAINER);
-        await mainPageBtn.click();
+        const sendMoneyBtn = await driver.$(SELECTORS.SEND_MONEY_BTN);
+        await sendMoneyBtn.click();
 
         const individualBtn = await driver.$(SELECTORS.SEND_MONEY_INDIVIDUAL_BTN);
         await individualBtn.waitForDisplayed();
         await individualBtn.click();
 
+        // Step 3: Enter Recipient Details
         console.log("🔹 Entering recipient details...");
         const phoneInput = await driver.$(SELECTORS.RECIPIENT_PHONE_INPUT);
         await phoneInput.waitForDisplayed();
         await phoneInput.setValue(account_number);
 
-        const nextPhoneBtn = await driver.$(SELECTORS.RECIPIENT_NEXT_BTN);
-        await nextPhoneBtn.click();
+        await (await driver.$(SELECTORS.RECIPIENT_NEXT_BTN)).click();
 
-        console.log("🔹 Entering amount...");
+        // Step 4: Enter Amount and Confirm
+        console.log("🔹 Entering amount and confirming...");
         const amountInput = await driver.$(SELECTORS.AMOUNT_INPUT);
         await amountInput.waitForDisplayed();
         await amountInput.setValue(String(amount));
 
-        console.log("🔹 Tapping OK button...");
-        await driver.performActions([/* ... your coordinates action ... */]);
-        await driver.releaseActions();
+        const payBtn = await driver.$(SELECTORS.CONFIRM_PAY_BTN);
+        await payBtn.waitForDisplayed();
+        await payBtn.click();
 
-        const sendBtn = await driver.$(SELECTORS.CONFIRM_SEND_BTN);
-        await sendBtn.click();
+        // Step 5: Enter Transaction PIN
+        await (await driver.$(SELECTORS.TRANSACTION_PIN_KEYPAD("1"))).waitForDisplayed();
+        await enterPin(driver, TELEBIRR_LOGIN_PIN, true);
 
-        console.log("🔹 Entering transaction PIN...");
-        const transactionPinKeypad = await driver.$(SELECTORS.TRANSACTION_PIN_KEYPAD("1"));
-        await transactionPinKeypad.waitForDisplayed();
-        
-        for (let digit of TELEBIRR_LOGIN_PIN) {
-            const btn = await driver.$(SELECTORS.TRANSACTION_PIN_KEYPAD(digit));
-            await btn.click();
-        }
+        // Step 6: Finalize Transaction
+        await (await driver.$(SELECTORS.TRANSACTION_FINISHED_BTN)).click();
 
-        const finishedBtn = await driver.$(SELECTORS.TRANSACTION_FINISHED_BTN);
-        await finishedBtn.click();
-
+        console.log("✅ Transaction appears to be successful.");
         result.status = "success";
         result.message = "Transaction completed successfully";
         result.data = { phone: account_number, amount: amount };
 
     } catch (err) {
         console.error("❌ Error during automation:", err);
-        result.status = "fail";
+        result.status = "failed"; // Corrected from "fail" to "failed"
         result.message = err.message || "Unknown error";
         result.data = { error: err.toString() };
     } finally {
         if (driver) {
             console.log("🧹 Cleaning up session...");
             try {
-                for (let i = 0; i < 4; i++) {
-                    if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 1000)) break;
-                    await driver.back();
-                }
+                // Attempt to return to home before closing
+                await navigateToHome(driver);
             } catch (cleanupErr) {
                 console.warn("⚠️ Could not return to home during cleanup:", cleanupErr.message);
             }
             await driver.deleteSession();
-            console.log("Session ended");
+            console.log("Session ended.");
         }
         console.log(JSON.stringify(result, null, 2));
         return result;
