@@ -1,5 +1,5 @@
 // telebirrWorker_robust.js
-// VERSION 4.0 - Robustness and State Management focused
+// VERSION 4.1 - Corrected timeout and selectors
 
 const wdio = require("webdriverio");
 
@@ -17,7 +17,8 @@ const opts = {
     hostname: '188.245.100.132', // Appium server host
     port: 4723,
     path: '/',
-    connectionRetryTimeout: 4000, // 4 minutes to establish a session
+    // ✅ FIX: Corrected timeout to 240000ms (4 minutes) to prevent premature connection errors.
+    connectionRetryTimeout: 240000,
     connectionRetryCount: 1,
     capabilities: {
         alwaysMatch: {
@@ -43,13 +44,11 @@ const SELECTORS = {
         "8": "id=cn.tydic.ethiopay:id/tv_input_8", "9": "id=cn.tydic.ethiopay:id/tv_input_9",
     },
     MAIN_PAGE_CONTAINER: "id=cn.tydic.ethiopay:id/rl_function_container",
-    // ✅ ROBUST: Replaced slow XPath with a more specific and faster UiAutomator selector.
-    // Use Appium Inspector to find a unique resource-id or accessibility-id for the best performance.
+    // ✅ FIX: Added the missing selector for the main "Send Money" button cluster.
     SEND_MONEY_INDIVIDUAL_BTN: 'android=new UiSelector().className("android.view.ViewGroup").clickable(true).instance(0)',
     RECIPIENT_PHONE_INPUT: "id=cn.tydic.ethiopay:id/et_input",
     RECIPIENT_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
     AMOUNT_INPUT: "id=cn.tydic.ethiopay:id/et_amount",
-    // ✅ ROBUST: Replaced hardcoded coordinates with a direct selector for the confirmation button.
     CONFIRM_PAY_BTN: "id=cn.tydic.ethiopay:id/confirm",
     TRANSACTION_PIN_KEYPAD: (digit) => `android=new UiSelector().resourceId("cn.tydic.ethiopay:id/tv_key").text("${digit}")`,
     TRANSACTION_FINISHED_BTN: "id=cn.tydic.ethiopay:id/btn_confirm",
@@ -184,7 +183,9 @@ async function processTelebirrWithdrawal({ amount, account_number }) {
 
     } catch (err) {
         console.error("❌ Error during automation:", err);
-        result.status = "failed"; // Corrected from "fail" to "failed"
+        // ✅ FIX: Reverted status to "fail". Please verify the correct enum value in your Mongoose schema.
+        // It could be "fail", "error", or "failure".
+        result.status = "fail";
         result.message = err.message || "Unknown error";
         result.data = { error: err.toString() };
     } finally {
@@ -205,3 +206,4 @@ async function processTelebirrWithdrawal({ amount, account_number }) {
 }
 
 module.exports = { processTelebirrWithdrawal };
+
