@@ -46,19 +46,19 @@ const processQueue = (bot) => {
         }
 
         // Send Telegram message
-        if (isSuccess) {
-            await bot.telegram.sendMessage(`✅ Withdrawal success, notifying user ${telegramId}`)
-              console.log(`✅ Withdrawal succes for ${amount}`);
-          try {
-            await bot.telegram.sendMessage(
-              Number(telegramId),
-              `✅ Your withdrawal of *${amount} Birr* to Telebirr has been completed successfully!`,
-              { parse_mode: "Markdown" }
-            );
-          } catch (msgErr) {
-            console.error(`❌ Failed to send success message to ${telegramId}:`, msgErr);
-          }
-        } else {
+         if (isSuccess) {
+                console.log(`✅ Withdrawal success, notifying user ${telegramId}`); // Changed to a simple console.log
+                // console.log(`✅ Withdrawal succes for ${amount}`); // This is redundant, you can remove it
+                try {
+                    await bot.telegram.sendMessage(
+                        Number(telegramId),
+                        `✅ Your withdrawal of *${amount} Birr* to Telebirr has been completed successfully!`,
+                        { parse_mode: "Markdown" }
+                    );
+                } catch (msgErr) {
+                    console.error(`❌ Failed to send success message to ${telegramId}:`, msgErr);
+                }
+            } else {
           console.log(`❌ Withdrawal failed, notifying user ${telegramId}`);
           try {
             await bot.telegram.sendMessage(
@@ -75,11 +75,11 @@ const processQueue = (bot) => {
 
         // Send failure message if something crashes
         try {
-        //   await bot.telegram.sendMessage(
-        //     Number(telegramId),
-        //     `🚫 An error occurred while processing your withdrawal. Please contact support.`,
-        //     { parse_mode: "Markdown" }
-        //   );
+          await bot.telegram.sendMessage(
+            Number(telegramId),
+            `🚫 An error occurred while processing your withdrawal. Please contact support.`,
+            { parse_mode: "Markdown" }
+          );
         } catch (msgErr) {
           console.error(`❌ Failed to send error message to ${telegramId}:`, msgErr);
         }
