@@ -55,7 +55,7 @@ const SELECTORS = {
 // Helper functions (isDisplayedWithin, navigateToHome) remain the same as the previous version.
 // I've included them here for a complete, copy-pasteable file.
 
-async function isDisplayedWithin(driver, selector, timeout = 3000) {
+async function isDisplayedWithin(driver, selector, timeout = 30000) {
     try {
         const element = await driver.$(selector);
         await element.waitForDisplayed({ timeout });
