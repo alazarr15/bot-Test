@@ -20,7 +20,7 @@ const opts = {
     port: 4723,
     path: '/',
     // NEW: Set a global default timeout for all `waitFor` commands.
-    waitforTimeout: 10000, 
+    waitforTimeout: 30000, 
     capabilities: {
         alwaysMatch: {
             platformName: "Android",
@@ -29,10 +29,10 @@ const opts = {
             "appium:appPackage": "cn.tydic.ethiopay",
             "appium:appActivity": "com.huawei.module_basic_ui.splash.LauncherActivity",
             "appium:noReset": true,
-            "appium:newCommandTimeout": 6000,
+            "appium:newCommandTimeout": 10000,
             // --- NEW: Performance-boosting capabilities ---
-            "appium:skipServerInstallation": true, // Skips reinstalling the driver on the device
-            "appium:disableWindowAnimation": true, // Makes screen transitions instant
+           // "appium:skipServerInstallation": true, // Skips reinstalling the driver on the device
+           // "appium:disableWindowAnimation": true, // Makes screen transitions instant
         }
     }
 };
