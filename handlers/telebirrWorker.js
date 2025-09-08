@@ -6,6 +6,7 @@ const wdio = require("webdriverio");
 // ⚠️ SECURITY: Use environment variables for sensitive info
 const TELEBIRR_LOGIN_PIN = process.env.TELEBIRR_LOGIN_PIN;
 const TELEBIRR_PHONE = process.env.TELEBIRR_PHONE;
+const APPIUM_DEVICE_NAME = process.env.APPIUM_DEVICE_NAME;
 
 if (!TELEBIRR_LOGIN_PIN || !TELEBIRR_PHONE) {
     throw new Error("Missing required environment variables: TELEBIRR_LOGIN_PIN or TELEBIRR_PHONE.");
@@ -23,7 +24,7 @@ const opts = {
     capabilities: {
         alwaysMatch: {
             platformName: "Android",
-            "appium:deviceName": "10.0.0.4:39183",
+            "appium:deviceName": APPIUM_DEVICE_NAME,
             "appium:automationName": "UiAutomator2",
             "appium:appPackage": "cn.tydic.ethiopay",
             "appium:appActivity": "com.huawei.module_basic_ui.splash.LauncherActivity",
