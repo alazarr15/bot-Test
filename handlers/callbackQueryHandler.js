@@ -231,8 +231,8 @@ module.exports = function (bot) {
             );
         }
 
-        // Handle playdemo callback
-        if (data === "playdemo") {
+        // Handle play callback
+        if (data === "play") {
             try {
                 await ctx.answerCbQuery();
                 const user = await User.findOne({ telegramId });
@@ -256,7 +256,7 @@ module.exports = function (bot) {
                     }
                 });
             } catch (err) {
-                console.error("❌ Error in playdemo callback:", err.message);
+                console.error("❌ Error in play callback:", err.message);
                 return ctx.reply("🚫 Something went wrong. Please try again later.");
             }
         }
