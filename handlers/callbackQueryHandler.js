@@ -232,7 +232,7 @@ module.exports = function (bot) {
         }
 
         // Handle play callback
-        if (data === "play") {
+        if (data === "Play") {
             try {
                 await ctx.answerCbQuery();
                 const user = await User.findOne({ telegramId });
@@ -327,7 +327,7 @@ module.exports = function (bot) {
         if (data === "invite") {
             await ctx.answerCbQuery();
 
-            const inviteLink = `https://t.me/bossbingobot?start=${telegramId}`;
+            const inviteLink = `https://t.me/Danbingobot?start=${telegramId}`;
 
             const message = `
 🎉 *Invite & Earn!*
