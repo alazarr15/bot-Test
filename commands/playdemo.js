@@ -2,7 +2,7 @@ const User = require("../Model/user");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 
 module.exports = function (bot) {
-  bot.command("playdemo", async (ctx) => {
+  bot.command("Play", async (ctx) => {
     try {
       const telegramId = ctx.from.id;
 
@@ -23,7 +23,7 @@ module.exports = function (bot) {
       }
 
     
-    return ctx.reply("🎮 Choose your demo game:", {
+    return ctx.reply("🎮 Choose your game:", {
       reply_markup: {
         inline_keyboard: [
           [{ text: "10 Birr", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=10` } }],
@@ -37,7 +37,7 @@ module.exports = function (bot) {
       if (err && err.msBeforeNext) {
         return ctx.reply("⚠️ Please wait a second before trying again.");
       }
-      console.error("❌ Error in /playdemo command:", err.message);
+      console.error("❌ Error in /play command:", err.message);
       return ctx.reply("🚫 Failed to show demo options. Please try again later.");
     }
   });

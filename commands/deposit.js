@@ -25,13 +25,13 @@ module.exports = function (bot) {
       }
 
       // ✅ Provide both options for deposit
-      const depositUrl = `https://bossbingo.netlify.app/PaymentForm?user=${telegramId}`;
+      //const depositUrl = `https://bossbingo.netlify.app/PaymentForm?user=${telegramId}`;
 
       return ctx.reply("💳 Choose how you want to deposit:", {
         reply_markup: {
           inline_keyboard: [
             [{ text: "Manual", callback_data: "manual_deposit" }],
-            [{ text: "🚀 Open Deposit Page", url: depositUrl }]
+            //[{ text: "🚀 Open Deposit Page", url: depositUrl }]
           ]
         }
       });
