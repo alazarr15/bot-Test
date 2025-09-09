@@ -1,5 +1,5 @@
 // telebirrWorker_final.js
-// VERSION 5.0 - Final version with enhanced timeouts for stability on slow connections.
+// VERSION 6.0 - Added screen wake and unlock functionality.
 
 const wdio = require("webdriverio");
 
@@ -24,7 +24,8 @@ const opts = {
     capabilities: {
         alwaysMatch: {
             platformName: "Android",
-            "appium:deviceName": APPIUM_DEVICE_NAME,
+            "appium:deviceName": "myPhone",
+            "appium:udid": "10.0.0.4:5555",
             "appium:automationName": "UiAutomator2",
             "appium:appPackage": "cn.tydic.ethiopay",
             "appium:appActivity": "com.huawei.module_basic_ui.splash.LauncherActivity",
@@ -74,6 +75,48 @@ async function isDisplayedWithin(driver, selector, timeout = 30000) { // Increas
         return true;
     } catch (e) {
         return false;
+    }
+}
+
+/**
+ * ⭐️ NEW: Wakes the device and performs a swipe to unlock if it's locked.
+ * This runs before any app interaction to ensure the device is ready.
+ * @param {object} driver - The WebdriverIO driver instance.
+ */
+async function ensureDeviceIsUnlocked(driver) {
+    console.log("🔐 Checking device lock state...");
+    const isLocked = await driver.isDeviceLocked();
+
+    if (isLocked) {
+        console.log("📱 Device is locked. Attempting to wake and unlock...");
+        await driver.wake(); // Wakes the device (equivalent to pressing the power button)
+        await driver.pause(1000); // Wait a moment for the lock screen UI to load
+
+        // Get screen dimensions to perform a generic "swipe up" unlock
+        const { width, height } = await driver.getWindowRect();
+        const startX = width / 2;
+        const startY = height * 0.8; // Start swipe from 80% down the screen
+        const endY = height * 0.2;   // End swipe at 20% from the top
+
+        console.log(`💨 Performing unlock swipe from (${startX.toFixed(0)}, ${startY.toFixed(0)}) to (${startX.toFixed(0)}, ${endY.toFixed(0)})`);
+
+        // Perform the swipe action
+        await driver.performActions([{
+            type: 'pointer',
+            id: 'finger1',
+            parameters: { pointerType: 'touch' },
+            actions: [
+                { type: 'pointerMove', duration: 0, x: startX, y: startY },
+                { type: 'pointerDown', button: 0 },
+                { type: 'pointerMove', duration: 500, x: startX, y: endY }, // A 500ms swipe
+                { type: 'pointerUp', button: 0 }
+            ]
+        }]);
+        await driver.releaseActions();
+        await driver.pause(2000); // Wait for the home screen to settle after unlock
+        console.log("✅ Unlock attempt completed.");
+    } else {
+        console.log("✅ Device is already unlocked.");
     }
 }
 
@@ -140,6 +183,9 @@ async function processTelebirrWithdrawal({ amount, account_number }) {
         driver = await wdio.remote(opts);
         console.log("✅ Appium session started.");
 
+        // ⭐️ NEW: Ensure the device is awake and unlocked before proceeding.
+        await ensureDeviceIsUnlocked(driver);
+
         await navigateToHome(driver);
 
         console.log("🔹 Navigating to 'Send Money'...");
@@ -155,7 +201,7 @@ async function processTelebirrWithdrawal({ amount, account_number }) {
         const amountInput = await driver.$(SELECTORS.AMOUNT_INPUT);
         await amountInput.setValue(String(amount));
 
-            // Tap OK using coordinates
+        // Tap OK using coordinates
         console.log("🔹 Tapping OK button...");
         await driver.performActions([{
             type: 'pointer',
@@ -191,7 +237,9 @@ async function processTelebirrWithdrawal({ amount, account_number }) {
         if (driver) {
             console.log("🧹 Cleaning up session...");
             try {
-                await navigateToHome(driver);
+                // No need to navigate home here as the session is ending,
+                // but we still want to ensure the session closes cleanly.
+                // await navigateToHome(driver); 
             } catch (cleanupErr) {
                 console.warn("⚠️ Could not return to home during cleanup:", cleanupErr.message);
             }
