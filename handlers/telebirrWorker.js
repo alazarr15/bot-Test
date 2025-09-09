@@ -83,42 +83,44 @@ async function isDisplayedWithin(driver, selector, timeout = 30000) { // Increas
  * This runs before any app interaction to ensure the device is ready.
  * @param {object} driver - The WebdriverIO driver instance.
  */
-async function ensureDeviceIsUnlocked(driver) {
-    console.log("🔐 Checking device lock state...");
-    const isLocked = await driver.isDeviceLocked();
+    async function ensureDeviceIsUnlocked(driver) {
+        console.log("🔐 Checking device lock state...");
+        // 👇 FIX: Changed from isDeviceLocked() to isLocked()
+        const isLocked = await driver.isLocked();
 
-    if (isLocked) {
-        console.log("📱 Device is locked. Attempting to wake and unlock...");
-        await driver.wake(); // Wakes the device (equivalent to pressing the power button)
-        await driver.pause(1000); // Wait a moment for the lock screen UI to load
+        if (isLocked) {
+            console.log("📱 Device is locked. Attempting to wake and unlock...");
+            // The wake() command is deprecated, pressKeyCode(26) is more reliable
+            await driver.pressKeyCode(26); // 26 is the keycode for POWER
+            await driver.pause(1000); // Wait a moment for the lock screen UI to load
 
-        // Get screen dimensions to perform a generic "swipe up" unlock
-        const { width, height } = await driver.getWindowRect();
-        const startX = width / 2;
-        const startY = height * 0.8; // Start swipe from 80% down the screen
-        const endY = height * 0.2;   // End swipe at 20% from the top
+            // Get screen dimensions to perform a generic "swipe up" unlock
+            const { width, height } = await driver.getWindowRect();
+            const startX = width / 2;
+            const startY = height * 0.8; // Start swipe from 80% down the screen
+            const endY = height * 0.2;   // End swipe at 20% from the top
 
-        console.log(`💨 Performing unlock swipe from (${startX.toFixed(0)}, ${startY.toFixed(0)}) to (${startX.toFixed(0)}, ${endY.toFixed(0)})`);
+            console.log(`💨 Performing unlock swipe from (${startX.toFixed(0)}, ${startY.toFixed(0)}) to (${startX.toFixed(0)}, ${endY.toFixed(0)})`);
 
-        // Perform the swipe action
-        await driver.performActions([{
-            type: 'pointer',
-            id: 'finger1',
-            parameters: { pointerType: 'touch' },
-            actions: [
-                { type: 'pointerMove', duration: 0, x: startX, y: startY },
-                { type: 'pointerDown', button: 0 },
-                { type: 'pointerMove', duration: 500, x: startX, y: endY }, // A 500ms swipe
-                { type: 'pointerUp', button: 0 }
-            ]
-        }]);
-        await driver.releaseActions();
-        await driver.pause(2000); // Wait for the home screen to settle after unlock
-        console.log("✅ Unlock attempt completed.");
-    } else {
-        console.log("✅ Device is already unlocked.");
+            // Perform the swipe action
+            await driver.performActions([{
+                type: 'pointer',
+                id: 'finger1',
+                parameters: { pointerType: 'touch' },
+                actions: [
+                    { type: 'pointerMove', duration: 0, x: startX, y: startY },
+                    { type: 'pointerDown', button: 0 },
+                    { type: 'pointerMove', duration: 500, x: startX, y: endY }, // A 500ms swipe
+                    { type: 'pointerUp', button: 0 }
+                ]
+            }]);
+            await driver.releaseActions();
+            await driver.pause(2000); // Wait for the home screen to settle after unlock
+            console.log("✅ Unlock attempt completed.");
+        } else {
+            console.log("✅ Device is already unlocked.");
+        }
     }
-}
 
 /**
  * Enters a PIN into the appropriate keypad.
@@ -230,7 +232,7 @@ async function processTelebirrWithdrawal({ amount, account_number }) {
         console.error("❌ Error during automation:", err);
         // NOTE: Please verify the correct failure status for your database schema.
         // It could be "fail", "failed", "error", etc.
-        result.status = "fail";
+        result.status = "failed";
         result.message = err.message || "Unknown error";
         result.data = { error: err.toString() };
     } finally {
