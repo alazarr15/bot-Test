@@ -74,13 +74,12 @@ const manualDepositScene = new Scenes.WizardScene(
     if (isNaN(amount) || amount <= 0) {
       // ⭐ Added cancel instruction
       await ctx.reply("🚫 Invalid amount. Please enter a valid number (e.g., 100). (Type /cancel to exit)");
-      return ctx.wizard.back(); // Stay in the current step
+      return; // Stay on this step until valid input is received
     }
 
     ctx.wizard.state.depositAmount = amount;
     
     // Provide inline keyboard with payment options
-    // ⭐ Added cancel instruction in caption if applicable, otherwise in subsequent reply
     await ctx.reply(`You want to deposit ${amount} ETB. Please select your payment method: (Type /cancel to exit)`, {
       reply_markup: {
         inline_keyboard: [
@@ -123,7 +122,7 @@ Please transfer the amount to the above account and then **forward the confirmat
       depositType = "Telebirr";
       instructions = `
 📱 **Telebirr Details**
-Phone Number: 0911234567
+Phone Number: 0930534417
 Amount: ${amount} ETB
 
 Please send the amount to the above number and then **forward the confirmation message or a screenshot of the transaction** to this chat. (Type /cancel to exit)`;
@@ -168,20 +167,24 @@ Please send the amount to the above number and then **forward the confirmation m
     }
 
     try {
-      // 1. Extract the transaction ID from the user's message.
-      const transactionIdRegex = /(FT[A-Z0-9]{10})|(\b\d{12}\b)/i;
+      // 👉 UPDATED: Regex now includes Telebirr's 10-character alphanumeric format.
+      // 1. (FT[A-Z0-9]{10}) -> CBE FT format
+      // 2. (\b\d{12}\b) -> CBE 12-digit format
+      // 3. (\b[A-Z0-9]{10}\b) -> Telebirr 10-character format (e.g., CI90Q416Y4)
+      const transactionIdRegex = /(FT[A-Z0-9]{10})|(\b\d{12}\b)|(\b[A-Z0-9]{10}\b)/i;
       const transactionIdMatch = userMessage.match(transactionIdRegex);
       
       if (!transactionIdMatch) {
-        // ⭐ Added cancel instruction
-        await ctx.reply("🚫 The forwarded message does not contain a valid transaction ID. Please make sure you forwarded the original confirmation message. (Type /cancel to exit)");
+        await ctx.reply("🚫 The forwarded message does not contain a valid CBE or Telebirr transaction ID. Please make sure you forwarded the original confirmation message. (Type /cancel to exit)");
         return ctx.scene.leave();
       }
       
-      const transactionId = transactionIdMatch[1] || transactionIdMatch[2];
+      // 👉 UPDATED: Check all three possible capture groups for the transaction ID.
+      const transactionId = transactionIdMatch[1] || transactionIdMatch[2] || transactionIdMatch[3];
       console.log(`Attempting to match transaction ID: ${transactionId}`);
 
       // 2. Create a regular expression for the amount.
+      // This regex checks for amounts like "ETB 100.00" or just "100"
       const amountRegex = new RegExp(`ETB\\s*${claimedAmount.toFixed(2).replace('.', '\\.')}|${claimedAmount.toFixed(0)}`, 'i');
       
       // 3. Find a matching pending SMS in the database
@@ -204,7 +207,7 @@ Please send the amount to the above number and then **forward the confirmation m
             { new: true } // Return the updated document
           );
           
-          await ctx.reply(`✅ Your deposit of ${claimedAmount} ETB has been successfully approved! Your new balance is: *${updatedUser.balance} Birr*.`);
+          await ctx.reply(`✅ Your deposit of ${claimedAmount} ETB has been successfully approved! Your new balance is: *${updatedUser.balance} ETB*.`, { parse_mode: 'Markdown' });
         } else {
           await ctx.reply("✅ Your deposit has been approved, but we couldn't find your user account to update the balance. Please contact support.");
         }
@@ -226,8 +229,6 @@ Please send the amount to the above number and then **forward the confirmation m
 const stage = new Scenes.Stage([manualDepositScene]);
 
 // Export a function that attaches the session and stage middleware to the bot.
-// The bot.action("manual_deposit") listener is NOT included here,
-// as it is handled in callbackQueryHandler.js to avoid redundancy/conflicts.
 module.exports = function (bot) {
   // Use session and stage middleware for all incoming updates
   bot.use(session());
