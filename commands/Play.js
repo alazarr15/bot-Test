@@ -38,7 +38,7 @@ module.exports = function (bot) {
         return ctx.reply("⚠️ Please wait a second before trying again.");
       }
       console.error("❌ Error in /play command:", err.message);
-      return ctx.reply("🚫 Failed to show demo options. Please try again later.");
+      return ctx.reply("🚫 Failed to show game options. Please try again later.");
     }
   });
 };

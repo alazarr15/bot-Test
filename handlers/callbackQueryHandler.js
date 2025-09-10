@@ -245,7 +245,7 @@ module.exports = function (bot) {
                     });
                 }
 
-                return ctx.reply("🎮 Choose your demo game:", {
+                return ctx.reply("🎮 Choose your game:", {
                     reply_markup: {
                         inline_keyboard: [
                             [{ text: "10 Birr", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=10` } }],
