@@ -2,7 +2,7 @@ const User = require("../Model/user");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 
 // ✅ IMPORT the reusable function from its file
-const { sendPlayDemoOptions } = require('./PlayDemoOptions'); // Make sure the path is correct
+const { sendPlayDemoOptions } = require('../handlers/PlayDemoOptions'); // Make sure the path is correct
 
 module.exports = function (bot) {
   bot.command("playdemo", async (ctx) => {
