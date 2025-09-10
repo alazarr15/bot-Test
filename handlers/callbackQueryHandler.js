@@ -1,12 +1,10 @@
-// handlers/callbackQueryHandler.js
-// This file handles all Telegram callback queries and queues long-running tasks.
-
 const User = require("../Model/user");
 const Withdrawal = require("../Model/withdrawal");
 const { registrationInProgress } = require("./state/registrationState");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 const { userWithdrawalStates } = require("./state/withdrawalState");
 const { processTelebirrWithdrawal } = require('./telebirrWorker');
+const {sendPlayDemoOptions} = require('./PlayDemoOptions')
 
 
 // ⚠️ We no longer require WebdriverIO here.
@@ -201,34 +199,16 @@ module.exports = function (bot) {
             );
         }
 
-        // Handle playdemo callback
-        if (data === "playdemo") {
-            try {
-                await ctx.answerCbQuery();
-                const user = await User.findOne({ telegramId });
-
-                if (!user) {
-                    return ctx.reply("🚫 You must register first. Please click below to register:", {
-                        reply_markup: {
-                            inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
-                        }
-                    });
-                }
-
-                return ctx.reply("🎮 Choose your demo game:", {
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: "10 Birr", web_app: { url: `https://bossbingo.netlify.app/?user=${telegramId}&game=10` } }],
-                            [{ text: "20 Birr", web_app: { url: `https://bossbingo.netlify.app/?user=${telegramId}&game=20` } }]
-                        ]
-                    }
-                });
-            } catch (err) {
-                console.error("❌ Error in playdemo callback:", err.message);
-                return ctx.reply("🚫 Something went wrong. Please try again later.");
-            }
-        }
-
+      // Handle playdemo callback
+if (data === "playdemo") {
+    try {
+        await ctx.answerCbQuery(); // Dismiss the loading indicator
+        await sendPlayDemoOptions(ctx); // Call the reusable function
+    } catch (err) {
+        console.error("❌ Error in playdemo callback:", err.message);
+        return ctx.reply("🚫 Something went wrong. Please try again later.");
+    }
+}
         // ⭐ Handle 'deposit' callback - INLINED LOGIC
         if (data === "deposit" || /^deposit_\d+$/.test(data)) {
             try {
