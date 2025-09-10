@@ -10,7 +10,7 @@ function buildMainMenu(user) {
         ],
         [
           { text: "📞 Contact Support", callback_data: "support" },
-          { text: "📖 Instruction", web_app: { url: "https://frontend.bingoogame.com/instruction" } }
+          { text: "📖 Instruction", web_app: { url: "http://frontend.bingoogame.com/instruction" } }
         ],
         [{ text: "📨 Invite", callback_data: "invite" }]
       ]
