@@ -3,7 +3,7 @@ function buildMainMenu(user) {
     reply_markup: {
       inline_keyboard: [
         [{ text: `✅ Registered as ${user?.username || "Guest"}`, callback_data: "registered" }],
-        [{ text: "🎮 Play", callback_data: "play" }],
+        [{ text: "🎮 Play", callback_data: "Play" }],
         [
           { text: "💰 Check Balance", callback_data: "balance" },
           { text: "💳 Deposit", callback_data: "deposit" }

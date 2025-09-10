@@ -12,7 +12,7 @@ bot.telegram.setMyCommands(botCommands)
 // ✅ Register all commands except deposit (inline below)
 require("./commands/register")(bot);
 require("./commands/changeUsername")(bot);
-require("./commands/playdemo")(bot);
+require("./commands/Play")(bot);
 require("./commands/balance")(bot);
 require("./commands/withdraw")(bot)
 require("./commands/deposit")(bot); 

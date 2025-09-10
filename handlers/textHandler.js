@@ -13,7 +13,7 @@ function buildMainMenu(user) {
     reply_markup: {
       inline_keyboard: [
         [{ text: `✅ Registered as ${user?.username || "Guest"}`, callback_data: "registered" }],
-        [{ text: "🎮 Play Demo", callback_data: "playdemo" }],
+        [{ text: "🎮 Play", callback_data: "Play" }],
         [
           { text: "💰 Check Balance", callback_data: "balance" },
           { text: "💳 Deposit", callback_data: "deposit" }
@@ -267,7 +267,7 @@ module.exports = function (bot) {
       // === 4. Main Menu Fallback ===
       // This is the general fallback if no other specific flow handles the message.
       // It checks for explicit commands that should return to the main menu.
-      if (message.startsWith('/') || ["/playdemo", "/balance", "/deposit", "/start"].includes(message)) {
+      if (message.startsWith('/') || ["/Play", "/balance", "/deposit", "/start"].includes(message)) {
           // Commands are typically handled by bot.command() listeners,
           // but if they fall through to text handler, this sends main menu.
           // The /start command in particular often leads back to the main menu.
