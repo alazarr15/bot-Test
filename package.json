@@ -23,12 +23,10 @@
     "dotenv": "^16.4.7",
     "express": "^5.1.0",
     "mongoose": "^8.10.1",
+    "nodemon": "^3.1.10",
     "rate-limiter-flexible": "^7.1.1",
     "telegraf": "^4.16.3",
     "telegraf-session-local": "^2.1.1",
     "webdriverio": "^9.19.1"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.9"
   }
 }

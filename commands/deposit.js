@@ -24,14 +24,20 @@ module.exports = function (bot) {
         });
       }
 
+<<<<<<< HEAD
       // ✅ Provide both options for deposit
       //const depositUrl = `https://bossbingo.netlify.app/PaymentForm?user=${telegramId}`;
+=======
+>>>>>>> 6a22756b028ee8e23b5ca2fb471125a008c708ac
 
       return ctx.reply("💳 Choose how you want to deposit:", {
         reply_markup: {
           inline_keyboard: [
             [{ text: "Manual", callback_data: "manual_deposit" }],
+<<<<<<< HEAD
             //[{ text: "🚀 Open Deposit Page", url: depositUrl }]
+=======
+>>>>>>> 6a22756b028ee8e23b5ca2fb471125a008c708ac
           ]
         }
       });

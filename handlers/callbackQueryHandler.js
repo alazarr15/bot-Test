@@ -281,8 +281,7 @@ module.exports = function (bot) {
                 return ctx.reply("💳 Choose how you want to deposit:", {
                     reply_markup: {
                         inline_keyboard: [
-                            [{ text: "Manual", callback_data: "manual_deposit" }],
-                            [{ text: "🚀 Open Deposit Page", url: depositUrl }]
+                            [{ text: "Manual", callback_data: "manual_deposit" }]
                         ]
                     }
                 });
