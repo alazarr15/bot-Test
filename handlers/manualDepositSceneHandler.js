@@ -147,12 +147,12 @@ Please send the amount to the above number and then **forward the confirmation m
     return ctx.wizard.next(); 
   },
 
-  // ➡️ Step 4: Receive and verify the user's confirmation message and transaction ID
-  async (ctx) => {
+// ➡️ Step 4: Receive and verify the user's confirmation message and transaction ID
+async (ctx) => {
     // ⭐ Check for /cancel here
     if (ctx.message && (ctx.message.text === "/cancel" || ctx.message.text.toLowerCase() === "cancel")) {
-      await ctx.reply("❌ Manual deposit cancelled.");
-      return ctx.scene.leave();
+        await ctx.reply("❌ Manual deposit cancelled.");
+        return ctx.scene.leave();
     }
 
     const userMessage = ctx.message?.text || ctx.message?.caption;
@@ -161,68 +161,67 @@ Please send the amount to the above number and then **forward the confirmation m
 
     // Check if the message is valid
     if (!userMessage) {
-        // ⭐ Added cancel instruction
         await ctx.reply("❌ I'm sorry, I can only process text or image captions. Please try forwarding the message again. (Type /cancel to exit)");
         return; // Stay in this step
     }
 
     try {
-      // 👉 UPDATED: Regex now includes Telebirr's 10-character alphanumeric format.
-      // 1. (FT[A-Z0-9]{10}) -> CBE FT format
-      // 2. (\b\d{12}\b) -> CBE 12-digit format
-      // 3. (\b[A-Z0-9]{10}\b) -> Telebirr 10-character format (e.g., CI90Q416Y4)
-      const transactionIdRegex = /(FT[A-Z0-9]{10})|(\b\d{12}\b)|(\b[A-Z0-9]{10}\b)/i;
-      const transactionIdMatch = userMessage.match(transactionIdRegex);
-      
-      if (!transactionIdMatch) {
-        await ctx.reply("🚫 The forwarded message does not contain a valid CBE or Telebirr transaction ID. Please make sure you forwarded the original confirmation message. (Type /cancel to exit)");
-        return ctx.scene.leave();
-      }
-      
-      // 👉 UPDATED: Check all three possible capture groups for the transaction ID.
-      const transactionId = transactionIdMatch[1] || transactionIdMatch[2] || transactionIdMatch[3];
-      console.log(`Attempting to match transaction ID: ${transactionId}`);
-
-      // 2. Create a regular expression for the amount.
-      // This regex checks for amounts like "ETB 100.00" or just "100"
-      const amountRegex = new RegExp(`ETB\\s*${claimedAmount.toFixed(2).replace('.', '\\.')}|${claimedAmount.toFixed(0)}`, 'i');
-      
-      // 3. Find a matching pending SMS in the database
-      const matchingSms = await SmsMessage.findOne({
-        message: { $regex: amountRegex },
-        status: "pending",
-        message: { $regex: new RegExp(transactionId, "i") }
-      });
-
-      if (matchingSms) {
-        await DepositRequest.update(ctx.wizard.state.depositRequestId, { status: "approved" });
-        matchingSms.status = "processed";
-        await matchingSms.save();
-
-        const user = await User.findOne({ telegramId });
-        if (user) {
-          const updatedUser = await User.findOneAndUpdate(
-            { telegramId },
-            { $inc: { balance: claimedAmount } },
-            { new: true } // Return the updated document
-          );
-          
-          await ctx.reply(`✅ Your deposit of ${claimedAmount} ETB has been successfully approved! Your new balance is: *${updatedUser.balance} ETB*.`, { parse_mode: 'Markdown' });
-        } else {
-          await ctx.reply("✅ Your deposit has been approved, but we couldn't find your user account to update the balance. Please contact support.");
+        // ⭐ NEW: Extract ONLY the 10-character transaction ID from the user's message
+        // This will find FT252556P529 and ignore the rest of the URL.
+        const transactionIdMatch = userMessage.match(/(FT[A-Z0-9]{10})/i);
+        
+        if (!transactionIdMatch) {
+            await ctx.reply("🚫 The forwarded message does not contain a valid CBE transaction ID. Please make sure you forwarded the original confirmation message. (Type /cancel to exit)");
+            return ctx.scene.leave();
         }
         
-      } else {
-        await ctx.reply("🚫 No matching deposit found. Please make sure you forwarded the correct and original confirmation message. If you believe this is an error, please contact support. (Type /cancel to exit)");
-      }
+        const transactionId = transactionIdMatch[1];
+        console.log(`Attempting to match transaction ID: ${transactionId}`);
+
+        // ⭐ NEW: Create a regular expression for the claimed amount.
+        const amountRegex = new RegExp(`ETB\\s*${claimedAmount.toFixed(2).replace('.', '\\.')}|${claimedAmount.toFixed(0)}`, 'i');
+
+        // ⭐ NEW: Find a matching pending SMS in the database
+        // This query now correctly uses the extracted transaction ID AND the amount regex
+        const matchingSms = await SmsMessage.findOne({
+            status: "pending",
+            message: {
+                $regex: new RegExp(`FT[A-Z0-9]{10}.*${claimedAmount.toFixed(2).replace('.', '\\.')}`, "i")
+            }
+        });
+        
+        // This regex will check for both the ID and the amount in the DB message
+        // An example of this regex would be: /FT252556P529.*10.00/i
+
+        if (matchingSms) {
+            await DepositRequest.update(ctx.wizard.state.depositRequestId, { status: "approved" });
+            matchingSms.status = "processed";
+            await matchingSms.save();
+
+            const user = await User.findOne({ telegramId });
+            if (user) {
+                const updatedUser = await User.findOneAndUpdate(
+                    { telegramId },
+                    { $inc: { balance: claimedAmount } },
+                    { new: true }
+                );
+                
+                await ctx.reply(`✅ Your deposit of ${claimedAmount} ETB has been successfully approved! Your new balance is: *${updatedUser.balance} ETB*.`, { parse_mode: 'Markdown' });
+            } else {
+                await ctx.reply("✅ Your deposit has been approved, but we couldn't find your user account to update the balance. Please contact support.");
+            }
+            
+        } else {
+            await ctx.reply("🚫 No matching deposit found. Please make sure you forwarded the correct and original confirmation message. If you believe this is an error, please contact support. (Type /cancel to exit)");
+        }
     } catch (error) {
-      console.error("❌ Error processing manual deposit message:", error);
-      await ctx.reply("🚫 An error occurred while processing your request. Please try again or contact support. (Type /cancel to exit)");
+        console.error("❌ Error processing manual deposit message:", error);
+        await ctx.reply("🚫 An error occurred while processing your request. Please try again or contact support. (Type /cancel to exit)");
     }
     
     // Regardless of outcome, end the scene
     return ctx.scene.leave();
-  }
+}
 );
 
 // Create a stage to manage the scenes
