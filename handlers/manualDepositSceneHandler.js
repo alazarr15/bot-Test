@@ -166,20 +166,20 @@ async (ctx) => {
     }
 
     try {
-        // ⭐ EXTRACT THE TRANSACTION ID FROM THE USER'S MESSAGE
-        // This regex now finds the transaction ID in either the message or the URL.
-        const transactionIdMatch = userMessage.match(/(FT[A-Z0-9]+)|(\b\d{12}\b)/i);
+        // ⭐ CORRECTED: Use a precise regex to get the 10-character Ref No.
+        // This regex now finds the transaction ID in either the "Ref No" part or the "id" part of the URL.
+        const transactionIdMatch = userMessage.match(/(FT[A-Z0-9]{10})/i);
         
         if (!transactionIdMatch) {
             await ctx.reply("🚫 The forwarded message does not contain a valid CBE or Telebirr transaction ID. Please make sure you forwarded the original confirmation message. (Type /cancel to exit)");
             return ctx.scene.leave();
         }
         
-        const transactionId = transactionIdMatch[1] || transactionIdMatch[2];
+        const transactionId = transactionIdMatch[1];
         console.log(`Attempting to match transaction ID: ${transactionId}`);
 
         // ⭐ CORRECTED: FIND A MATCHING PENDING SMS IN THE DATABASE
-        // This query now correctly uses the extracted transaction ID AND the amount.
+        // This query now correctly uses the extracted 10-character transaction ID AND the amount.
         const matchingSms = await SmsMessage.findOne({
             status: "pending",
             $and: [
@@ -187,7 +187,7 @@ async (ctx) => {
                 { message: { $regex: new RegExp(claimedAmount.toFixed(2).replace('.', '\\.'), "i") } }
             ]
         });
-
+        
         if (matchingSms) {
             await DepositRequest.update(ctx.wizard.state.depositRequestId, { status: "approved" });
             matchingSms.status = "processed";
