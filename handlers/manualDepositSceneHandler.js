@@ -148,7 +148,6 @@ Please send the amount to the above number and then **forward the confirmation m
   },
 
 // ➡️ Step 4: Receive and verify the user's confirmation message and transaction ID
-// ➡️ Step 4: Receive and verify the user's confirmation message and transaction ID
   async (ctx) => {
       // ⭐ Check for /cancel here
       if (ctx.message && (ctx.message.text === "/cancel" || ctx.message.text.toLowerCase() === "cancel")) {
@@ -236,7 +235,7 @@ const stage = new Scenes.Stage([manualDepositScene]);
 
 // Export a function that attaches the session and stage middleware to the bot.
 module.exports = function (bot) {
-  // Use session and stage middleware for all incoming updates
+  // Use session and stage middleware for all incoming updat
   bot.use(session());
   bot.use(stage.middleware());
 };
