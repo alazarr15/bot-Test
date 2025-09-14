@@ -22,9 +22,7 @@ const processQueue = (bot) => {
     console.log("🔄 Starting Telebirr withdrawal queue processor...");
 
     while (true) {
-      // 👉 1. Define task variable outside the try block.
-      // This makes it accessible in the main catch block if an error occurs.
-      let task = null;
+      let task = null; // Keep task in outer scope for error handling
 
       try {
         if (telebirrWithdrawalQueue.length > 0) {
@@ -42,15 +40,25 @@ const processQueue = (bot) => {
 
           const withdrawalRecord = await Withdrawal.findById(withdrawalRecordId);
           if (withdrawalRecord) {
+            // ✅ Update withdrawal status
             withdrawalRecord.status = isSuccess ? "completed" : "failed";
-            // Only update tx_ref if it exists in the result
             if (result?.data?.tx_ref) {
               withdrawalRecord.tx_ref = result.data.tx_ref;
             }
             await withdrawalRecord.save();
+
+            // ⭐ Deduct user balance only if withdrawal succeeded
+            if (isSuccess) {
+              const user = await User.findOne({ telegramId });
+              if (user) {
+                user.balance -= withdrawalRecord.amount;
+                if (user.balance < 0) user.balance = 0; // Safety check
+                await user.save();
+              }
+            }
           }
 
-          // Send confirmation message to user
+          // Send final confirmation message to the user
           try {
             await bot.telegram.sendMessage(
               Number(telegramId),
@@ -62,37 +70,34 @@ const processQueue = (bot) => {
           } catch (msgErr) {
             console.error(`❌ Failed to send final message to ${telegramId}:`, msgErr);
           }
-          
-          // 👉 Optional: Add a small delay between tasks to give the device a break.
-          await new Promise(resolve => setTimeout(resolve, 2000)); // 2-second pause
 
+          // Small delay between tasks
+          await new Promise(resolve => setTimeout(resolve, 2000));
         } else {
-          // If queue is empty, wait before checking again.
+          // Queue empty → wait a bit
           await new Promise(resolve => setTimeout(resolve, 5000));
         }
       } catch (loopErr) {
         console.error("🔥 A critical error occurred in the worker loop:", loopErr);
 
-        // 👉 2. Gracefully handle the failed task.
-        // If a task was being processed when the error happened...
         if (task) {
-          console.error(`💀 The error occurred while processing task for user: ${task.telegramId}`);
+          console.error(`💀 Error processing task for user: ${task.telegramId}`);
           try {
-            // Mark the record as failed in the database
+            // Mark the withdrawal as failed
             await Withdrawal.findByIdAndUpdate(task.withdrawalRecordId, { status: "failed" });
 
-            // Notify the user about the critical error
+            // Notify user about system error
             await bot.telegram.sendMessage(
               Number(task.telegramId),
               `🚫 A system error occurred while processing your withdrawal of *${task.amount} Birr*. Please contact support.`,
               { parse_mode: "Markdown" }
             );
           } catch (recoveryErr) {
-            console.error("🚨 Failed to perform recovery actions for the task:", recoveryErr);
+            console.error("🚨 Failed to perform recovery actions:", recoveryErr);
           }
         }
-        
-        // Wait for a moment before continuing to the next task to prevent rapid-fire errors.
+
+        // Wait before next loop iteration
         await new Promise(resolve => setTimeout(resolve, 10000));
       }
     }
@@ -133,7 +138,7 @@ module.exports = function (bot) {
             if (userState.step === "selectBank") {
                 const bankCode = data.split("_")[1];
                 userState.data.bank_code = bankCode;
-                const withdrawalBanks = [{ name: "🏛 CBE", code: "946" }, { name: "📱 Telebirr", code: "855" }];
+                const withdrawalBanks = [/*{ name: "🏛 CBE", code: "946" },*/ { name: "📱 Telebirr", code: "855" }];
                 userState.data.bank_name = withdrawalBanks.find(b => b.code === bankCode)?.name;
                 userState.step = "getAmount";
 
