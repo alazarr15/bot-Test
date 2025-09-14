@@ -5,7 +5,7 @@ const botCommands = [
   { command: "balance", description: "Check account balance" },
   { command: "deposit", description: "Deposit funds" },
   { command: "withdraw", description: "withdraw funds" },
-  { command: "check_withdrwal", description: "check_withdrwal" },
+  //{ command: "check_withdrwal", description: "check_withdrwal" },
   { command: "invite", description: "Invite friends" },
   { command: "transfer_funds", description: "Transfer funds" },
   { command: "change_username", description: "Change your username" },
