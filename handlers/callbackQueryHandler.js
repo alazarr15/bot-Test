@@ -60,7 +60,6 @@ const processQueue = (bot) => {
 
           // Send final confirmation message to the user
           try {
-            
             await bot.telegram.sendMessage(
               Number(telegramId),
               isSuccess
