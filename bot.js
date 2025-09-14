@@ -20,7 +20,7 @@ require("./commands/invite")(bot);
 require("./commands/support")(bot);
 require("./commands/transferFunds")(bot);
 require("./commands/start")(bot);
-require("./commands/check_withdrwal")(bot);
+//require("./commands/check_withdrwal")(bot);
 require('./commands/transfer_history')(bot);
 
 // ⭐ IMPORTANT: Register the scene handler (which applies session and stage middleware) FIRST
