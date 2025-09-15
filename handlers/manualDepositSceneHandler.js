@@ -47,7 +47,7 @@ const manualDepositScene = new Scenes.WizardScene(
       await globalRateLimiter.consume("global");
       
       // ⭐ Added cancel instruction
-      await ctx.reply("💰 Please enter the amount you want to deposit: (Type /cancel to exit)");
+      await ctx.reply("💰 ለማስገባት የሚፈልጉትን መጠን ያስገቡ: (ለመውጣት /cancel )");
       return ctx.wizard.next(); // Go to the next step
     } catch (err) {
       if (err && err.msBeforeNext) {
@@ -73,14 +73,14 @@ const manualDepositScene = new Scenes.WizardScene(
     // Validate if the input is a valid positive number
     if (isNaN(amount) || amount <= 0) {
       // ⭐ Added cancel instruction
-      await ctx.reply("🚫 Invalid amount. Please enter a valid number (e.g., 100). (Type /cancel to exit)");
-      return; // Stay on this step until valid input is received
+    await ctx.reply("🚫 የተሳሳተ መጠን። እባክዎ ትክክለኛ ቁጥር ያስገቡ (ለምሳሌ፦ 100)። (ለመውጣት /cancel ይጻፉ)");  
+    return; // Stay on this step until valid input is received
     }
 
     ctx.wizard.state.depositAmount = amount;
     
     // Provide inline keyboard with payment options
-    await ctx.reply(`You want to deposit ${amount} ETB. Please select your payment method: (Type /cancel to exit)`, {
+    await ctx.reply(`💰 የሚፈልጉት ${amount} ብር ለማስገባት ነው። እባክዎ የክፍያ ዘዴዎን ይምረጡ: (ለመውጣት /cancel ይጻፉ)`, {
       reply_markup: {
         inline_keyboard: [
           [{ text: "CBE to CBE", callback_data: "payment_cbe" }],
@@ -108,25 +108,25 @@ const manualDepositScene = new Scenes.WizardScene(
     let instructions = "";
     let depositType = "";
 
-    // Set instructions based on the user's choice
-    if (method === "payment_cbe") {
-      depositType = "CBE";
-      instructions = `
-🏦 **CBE Bank Account Details**
-Account Name: BINGO GAMES 
-Account Number: 1000454544246
-Amount: ${amount} ETB
+   // Set instructions based on the user's choice
+if (method === "payment_cbe") {
+  depositType = "CBE";
+  instructions = `
+🏦 **የንግድ ባንክ ኢትዮጵያ (CBE) የባንክ ሂሳብ ዝርዝር**
+የሂሳብ ስም: BINGO GAMES 
+የሂሳብ ቁጥር: 1000454544246
+መጠን: ${amount} ብር
 
-Please transfer the amount to the above account and then **forward the confirmation message or a screenshot of the transaction** to this chat. (Type /cancel to exit)`;
-    } else if (method === "payment_telebirr") {
-      depositType = "Telebirr";
-      instructions = `
-📱 **Telebirr Details**
-Phone Number: 0930534417
-Amount: ${amount} ETB
+እባክዎ ከላይ ያለውን ሂሳብ ቁጥር መጠን ያስተላልፉ እና ከዚያ **የተጠቃሚውን ማረጋገጫ መልእክት ወይም የግብይት ስክሪንሾት** ወደዚህ ቻት ይላኩ። (ለመውጣት /cancel ይጻፉ)`;
+} else if (method === "payment_telebirr") {
+  depositType = "ቴሌብር";
+  instructions = `
+📱 **የቴሌብር ዝርዝሮች**
+ስልክ ቁጥር: 0930534417
+መጠን: ${amount} ብር
 
-Please send the amount to the above number and then **forward the confirmation message or a screenshot of the transaction** to this chat. (Type /cancel to exit)`;
-    }
+እባክዎ ከላይ ያለውን ቁጥር መጠን ይላኩ እና ከዚያ **የተጠቃሚውን ማረጋገጫ መልእክት ወይም የግብይት ስክሪንሾት** ወደዚህ ቻት ይላኩ። (ለመውጣት /cancel ይጻፉ)`;
+}
 
     // Acknowledge the button click and show the instructions
     await ctx.answerCbQuery();
@@ -185,8 +185,8 @@ Please send the amount to the above number and then **forward the confirmation m
           }
 
           if (!transactionId) {
-              await ctx.reply("🚫 The forwarded message does not contain a valid CBE or Telebirr transaction ID. Please make sure you forwarded the original confirmation message. (Type /cancel to exit)");
-              return ctx.scene.leave();
+             await ctx.reply("🚫 የገለበጡት መልእክት ትክክለኛ የCBE ወይም የቴሌብር የግብይት መለያ አይዟልም። እባክዎ የመጀመሪያውን ማረጋገጫ መልእክት መላልዎን ያረጋግጡ። (ለመውጣት /cancel ይጻፉ)");        
+             return ctx.scene.leave();
           }
 
           // ⭐ CORRECTED: FIND A MATCHING PENDING SMS IN THE DATABASE

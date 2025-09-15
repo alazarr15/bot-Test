@@ -6,7 +6,7 @@ const { userWithdrawalStates } = require("../handlers/state/withdrawalState");
 
 const withdrawalBanks = [
     { name: "🏛 CBE", code: "946" },
-   // { name: "📱 Telebirr", code: "855" },
+    { name: "📱 Telebirr", code: "855" },
 ];
 
 module.exports = function (bot) {
@@ -29,7 +29,7 @@ module.exports = function (bot) {
 
             // 💾 Initialize state for this user in our in-memory map
             userWithdrawalStates.set(telegramId, {
-                step: "selectBank",
+                step: "💳 ባንክዎን ይምረጡ:",
                 userBalance: user.balance,
                 data: {}, // To store bank_code, amount, account_number
             });
@@ -40,7 +40,7 @@ module.exports = function (bot) {
                 callback_data: `withdraw_${bank.code}`
             }]);
 
-            return ctx.reply("💵 Please choose your withdrawal method:", {
+            return ctx.reply("💵 እባክዎ የገንዘብ ማውጣት ዘዴዎን ይምረጡ:", {
                 reply_markup: {
                     inline_keyboard: keyboard
                 }

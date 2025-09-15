@@ -26,7 +26,7 @@ module.exports = function (bot) {
 
       // ✅ Provide both options for deposit
       //const depositUrl = `https://bossbingo.netlify.app/PaymentForm?user=${telegramId}`;
-      return ctx.reply("💳 Choose how you want to deposit:", {
+      return ctx.reply("💰 የገንዘብ ማስገቢያ ዘዴ ይምረጡ:", {
         reply_markup: {
           inline_keyboard: [
             [{ text: "Manual", callback_data: "manual_deposit" }],

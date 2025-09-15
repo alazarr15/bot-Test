@@ -70,42 +70,41 @@ module.exports = function (bot) {
 
         // ⭐ Check for a WITHDRAWAL flow first
       const userState = userWithdrawalStates.get(telegramId);
-      if (userState) {
-        // 💰 Handle amount input
-        if (userState.step === "getAmount") {
-          const amount = parseFloat(messageRaw);
-          if (isNaN(amount) || amount <= 0) {
-            return ctx.reply("🚫 That's an invalid amount. Please enter a positive number.");
-          }
-          if (amount > userState.userBalance) {
-            return ctx.reply(`🚫 The amount you entered (${amount} ETB) is more than your balance (${userState.userBalance} ETB). Please enter a smaller amount.`);
-          }
-          userState.data.amount = amount;
-          userState.step = "getAccount";
-          return ctx.reply(`Please reply with your **${userState.data.bank_name}** account number:`, {
-            parse_mode: 'Markdown'
-          });
-        }
-        // 🔢 Handle account number input
-        else if (userState.step === "getAccount") {
-          const accountNumber = messageRaw;
-          userState.data.account_number = accountNumber;
-          userState.step = "confirm";
-          const { bank_name, amount } = userState.data;
-          const confirmMessage = `**Please confirm your withdrawal details:**\n- **Bank:** ${bank_name}\n- **Amount:** ${amount} ETB\n- **Account:** ${accountNumber}\n\nIs this correct?`;
-          return ctx.reply(confirmMessage, {
-            parse_mode: 'Markdown',
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: "✅ Confirm", callback_data: "withdraw_confirm" }],
-                [{ text: "❌ Cancel", callback_data: "withdraw_cancel" }]
-              ]
-            }
-          });
-        }
-        return; // Exit after processing the withdrawal flow
+    if (userState) {
+    // 💰 Handle amount input
+    if (userState.step === "getAmount") {
+      const amount = parseFloat(messageRaw);
+      if (isNaN(amount) || amount <= 0) {
+        return ctx.reply("🚫 የተሳሳተ መጠን ነው። እባክዎ አወንታዊ ቁጥር ያስገቡ።");
       }
-
+      if (amount > userState.userBalance) {
+        return ctx.reply(`🚫 ያስገቡት መጠን (${amount} ብር) ከቀሪ ሒሳብዎ (${userState.userBalance} ብር) በላይ ነው። እባክዎ ያነሰ መጠን ያስገቡ።`);
+      }
+      userState.data.amount = amount;
+      userState.step = "getAccount";
+      return ctx.reply(`እባክዎ የ**${userState.data.bank_name}** የሒሳብ ቁጥርዎን ይጻፉ።`, {
+        parse_mode: 'Markdown'
+      });
+    }
+    // 🔢 Handle account number input
+    else if (userState.step === "getAccount") {
+      const accountNumber = messageRaw;
+      userState.data.account_number = accountNumber;
+      userState.step = "confirm";
+      const { bank_name, amount } = userState.data;
+      const confirmMessage = `**የገንዘብ ማውጣት ዝርዝሮችዎን ያረጋግጡ:**\n- **ባንክ:** ${bank_name}\n- **መጠን:** ${amount} ብር\n- **የሒሳብ ቁጥር:** ${accountNumber}\n\nይህ ትክክል ነው?`;
+      return ctx.reply(confirmMessage, {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "✅ አረጋግጥ", callback_data: "withdraw_confirm" }],
+            [{ text: "❌ ይቅር", callback_data: "withdraw_cancel" }]
+          ]
+        }
+      });
+    }
+    return; // Exit after processing the withdrawal flow
+  }
 
 
 

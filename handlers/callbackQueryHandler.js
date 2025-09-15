@@ -60,11 +60,12 @@ const processQueue = (bot) => {
 
           // Send final confirmation message to the user
           try {
+            
             await bot.telegram.sendMessage(
               Number(telegramId),
               isSuccess
-                ? `✅ Your withdrawal of *${amount} Birr* has been completed successfully!`
-                : `🚫 Your withdrawal of *${amount} Birr* failed. Please try again later.`,
+                ? `✅ የ*${amount} ብር* ገንዘብ ማውጣትዎ በተሳካ ሁኔታ ተካሂዷል!`
+                : `🚫 የ*${amount} ብር* ገንዘብ ማውጣትዎ አልተሳካም። እባክዎ ቆይተው እንደገና ይሞክሩ።`,
               { parse_mode: "Markdown" }
             );
           } catch (msgErr) {
@@ -138,11 +139,11 @@ module.exports = function (bot) {
             if (userState.step === "selectBank") {
                 const bankCode = data.split("_")[1];
                 userState.data.bank_code = bankCode;
-                const withdrawalBanks = [/*{ name: "🏛 CBE", code: "946" },*/ { name: "📱 Telebirr", code: "855" }];
+                const withdrawalBanks = [{ name: "🏛 CBE", code: "946" }, { name: "📱 Telebirr", code: "855" }];
                 userState.data.bank_name = withdrawalBanks.find(b => b.code === bankCode)?.name;
                 userState.step = "getAmount";
 
-                return ctx.reply(`You chose **${userState.data.bank_name}**. Please reply with the amount you wish to withdraw:`, {
+                return ctx.reply(`**${userState.data.bank_name}** መርጠዋል። ለማውጣት የሚፈልጉትን መጠን ይጻፉ።`, {
                     parse_mode: 'Markdown'
                 });
             }
@@ -153,11 +154,7 @@ module.exports = function (bot) {
                     const { amount, bank_code, account_number } = userState.data;
 
                     try {
-                        await ctx.editMessageText("⏳ Your withdrawal request is being processed. We will notify you when it's complete.", {
-                            reply_markup: {
-                                inline_keyboard: [[{ text: "⌛️ In Review", callback_data: "ignore" }]]
-                            }
-                        });
+                        await ctx.editMessageText("⏳ ገንዘብ ማውጣት ሂደትዎ ተጀምሯል። በተጠናቀቀ ጊዜ እናሳዉቃለን [1-3] ደቂቃ");
 
                         const withdrawal = new Withdrawal({
                             tx_ref: `TX-${Date.now()}-${telegramId}`,
@@ -283,7 +280,7 @@ module.exports = function (bot) {
                 const depositUrl = `https://frontend.bingoogame.com/PaymentForm?user=${telegramId}`;
 
                 // Return the deposit options directly
-                return ctx.reply("💳 Choose how you want to deposit:", {
+                return ctx.reply("💰 የገንዘብ ማስገቢያ ዘዴ ይምረጡ:", {
                     reply_markup: {
                         inline_keyboard: [
                             [{ text: "Manual", callback_data: "manual_deposit" }]
@@ -318,7 +315,7 @@ module.exports = function (bot) {
                     });
                 }
 
-                return ctx.reply(`💰 Your current balance is: *${user.balance} Birr*`, {
+                return ctx.reply(`💰 ቀሪ ሒሳብዎ: *${user.balance} ብር*`, {
                     parse_mode: "Markdown"
                 });
             } catch (error) {
