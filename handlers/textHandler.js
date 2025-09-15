@@ -112,29 +112,28 @@ module.exports = function (bot) {
 
       // === 1. Username Change Flow ===
       // This block runs if a username change is in progress and the message wasn't '/cancel'
-      if (usernameChangeInProgress.has(telegramId)) {
-        // Validation for new username
-        if (messageRaw.length < 3) {
-          return ctx.reply("⚠️ Invalid username. Please enter at least 3 characters.");
-        }
-        if (!/^[a-zA-Z0-9_]+$/.test(messageRaw)) {
-          return ctx.reply("⚠️ Username can only contain letters, numbers, and underscores.");
-        }
+     if (usernameChangeInProgress.has(telegramId)) {
+    // Validation for new username
+    if (messageRaw.length < 3) {
+      return ctx.reply("⚠️ የተሳሳተ USERNAME እባክዎ ቢያንስ 3 ፊደሎች ያስገቡ።");
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(messageRaw)) {
+return ctx.reply("⚠️ USERNAME ፊደል፣ ቁጥር እና \"_\" ብቻ ሊይዝ ይችላል።");    }
 
-        const existingUser = await User.findOne({ username: messageRaw });
-        if (existingUser && existingUser.telegramId !== telegramId) {
-          return ctx.reply("🚫 This username is already taken. Please try a different one.");
-        }
+    const existingUser = await User.findOne({ username: messageRaw });
+    if (existingUser && existingUser.telegramId !== telegramId) {
+      return ctx.reply("🚫 ይህ USERNAME ቀድሞውኑ ተይዟል። እባክዎ ሌላ ይሞክሩ።");
+    }
 
-        // If all validations pass, update username and clean up state
-        await User.updateOne({ telegramId }, { username: messageRaw });
-        usernameChangeInProgress.delete(telegramId); // Clean up state upon successful change
-        await ctx.reply(`✅ Your username has been updated to *${messageRaw}*!`, { parse_mode: "Markdown" });
+    // If all validations pass, update username and clean up state
+    await User.updateOne({ telegramId }, { username: messageRaw });
+    usernameChangeInProgress.delete(telegramId); // Clean up state upon successful change
+    await ctx.reply(`✅ USERNAMEዎ ወደ *${messageRaw}* ተቀይሯል!`, { parse_mode: "Markdown" });
 
-        const user = await User.findOne({ telegramId });
-        if (user) return ctx.reply("🔄 Main menu:", buildMainMenu(user));
-        return; // End flow after successful username change
-      }
+    const user = await User.findOne({ telegramId });
+    if (user) return ctx.reply("🔄 ዋና መዝገብ:", buildMainMenu(user));
+    return; // End flow after successful username change
+  }
 
       // === 2. Registration Check ===
       // This block prompts for registration if user sends text and isn't registered,

@@ -26,8 +26,7 @@ module.exports = function (bot) {
 
       usernameChangeInProgress.set(telegramId, true);
       return ctx.reply(
-        "📝 Please type your new username (at least 3 characters, letters/numbers/underscores only).\nTo cancel, type /cancel."
-      );
+"📝 እባክዎ አዲስ USERNAME ይጻፉ (ቢያንስ 3 ፊደሎች)\nለመውጣት /cancel ይጻፉ።" );
     } catch (error) {
       if (error && error.msBeforeNext) {
         return ctx.reply("⚠️ Please wait a second before trying again.");

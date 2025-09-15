@@ -154,7 +154,7 @@ module.exports = function (bot) {
                     const { amount, bank_code, account_number } = userState.data;
 
                     try {
-                        await ctx.editMessageText("⏳ ገንዘብ ማውጣት ሂደትዎ ተጀምሯል። በተጠናቀቀ ጊዜ እናሳዉቃለን [1-3] ደቂቃ");
+                        await ctx.editMessageText("⏳ ገንዘብ ማውጣት ሂደትዎ ተጀምሯል። በተጠናቀቀ ጊዜ እናሳዉቃለን [1-3] ደቂቃ ለመውጣት /cancel ይጻፉ።");
 
                         const withdrawal = new Withdrawal({
                             tx_ref: `TX-${Date.now()}-${telegramId}`,
