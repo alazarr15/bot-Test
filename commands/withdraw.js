@@ -5,8 +5,8 @@ const User = require("../Model/user");
 const { userWithdrawalStates } = require("../handlers/state/withdrawalState");
 
 const withdrawalBanks = [
-    { name: "🏛 CBE", code: "946" },
-    { name: "📱 Telebirr", code: "855" },
+  //  { name: "🏛 CBE", code: "946" },
+    { name: "📱 Telebirr", code: "855" }
 ];
 
 module.exports = function (bot) {
