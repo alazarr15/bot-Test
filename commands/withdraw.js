@@ -29,7 +29,7 @@ module.exports = function (bot) {
 
             // 💾 Initialize state for this user in our in-memory map
             userWithdrawalStates.set(telegramId, {
-                step: "💳 ባንክዎን ይምረጡ:",
+                step: "selectBank",
                 userBalance: user.balance,
                 data: {}, // To store bank_code, amount, account_number
             });
