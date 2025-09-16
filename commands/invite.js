@@ -24,7 +24,7 @@ module.exports = function (bot) {
            await globalRateLimiter.consume("global");
       if (ctx.callbackQuery) await ctx.answerCbQuery();
 
-      const inviteLink = `https://t.me/Danbingobot?start=${telegramId}`;
+      const inviteLink = `https://t.me/LuckyBingobot?start=${telegramId}`;
 
       const message = `
 🎉 *Invite & Earn!*

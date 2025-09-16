@@ -364,7 +364,7 @@ module.exports = function (bot) {
         if (data === "invite") {
             await ctx.answerCbQuery();
 
-            const inviteLink = `https://t.me/Danbingobot?start=${telegramId}`;
+            const inviteLink = `https://t.me/Luckybingobot?start=${telegramId}`;
 
             const message = `
 🎉 *Invite & Earn!*
