@@ -168,7 +168,7 @@ if (method === "payment_cbe") {
       try {
           // ⭐ MODIFIED: Use a more flexible regex to capture both CBE and Telebirr IDs from the user's message
           const cbeRegex = /(FT[A-Z0-9]{10})/i;
-          const telebirrRegex = /Your transaction number is ([A-Z0-9]{10})/i; // Matches the sender's Telebirr confirmation format
+          const telebirrRegex = /(?:Your transaction number is|የሂሳብ እንቅስቃሴ ቁጥርዎ)\s*([A-Z0-9]{10})/i; // Matches the sender's Telebirr confirmation format
 
           let transactionIdMatch = userMessage.match(cbeRegex);
           let transactionId = null;
