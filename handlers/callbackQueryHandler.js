@@ -87,6 +87,21 @@ const processQueue = (bot) => {
             // Mark the withdrawal as failed
             await Withdrawal.findByIdAndUpdate(task.withdrawalRecordId, { status: "failed" });
 
+
+         // --- ⬇️ ADD THIS REFUND LOGIC ⬇️ ---
+              try {
+                const userToRefund = await User.findOne({ telegramId: String(task.telegramId) });
+                if (userToRefund) {
+                    userToRefund.balance += task.amount; // Add the money back
+                    await userToRefund.save();
+                    console.log(`✅ Refunded ${task.amount} Birr to user ${task.telegramId}`);
+                }
+            } catch (refundErr) {
+                // If the refund itself fails, this is a critical issue that needs manual review.
+                console.error(`🚨 CRITICAL: FAILED TO REFUND USER ${task.telegramId} for amount ${task.amount}`, refundErr);
+            }
+            // --- ⬆️ END OF REFUND LOGIC ⬆️ ---
+
             // Notify user about system error
             await bot.telegram.sendMessage(
               Number(task.telegramId),
@@ -154,6 +169,27 @@ module.exports = function (bot) {
                     const { amount, bank_code, account_number } = userState.data;
 
                     try {
+                        
+                // --- ⬇️ START: NEW LOGIC ⬇️ ---
+
+                    // 1. Find the user in your database
+                    const user = await User.findOne({ telegramId: String(telegramId) });
+                    if (!user) {
+                        return await ctx.reply("🚫 User not found. Please try registering again.");
+                    }
+
+                    // 2. Check if their balance is sufficient
+                    if (user.balance < amount) {
+                        userWithdrawalStates.delete(telegramId); // Clean up state
+                        return await ctx.editMessageText(`🚫 Insufficient balance. You only have ${user.balance} Birr.`);
+                    }
+
+                    // 3. Debit the balance IMMEDIATELY to prevent double-spending
+                    user.balance -= amount;
+                    await user.save();
+
+                // --- ⬆️ END: NEW LOGIC ⬆️ ---
+
                         await ctx.editMessageText("⏳ ገንዘብ ማውጣት ሂደትዎ ተጀምሯል። በተጠናቀቀ ጊዜ እናሳዉቃለን [1-3] ደቂቃ ለመውጣት /cancel ይጻፉ።");
 
                         const withdrawal = new Withdrawal({
