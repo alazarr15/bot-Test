@@ -3,8 +3,8 @@ const User = require("../Model/user");
 const Withdrawal = require("../Model/withdrawal");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 
-// ✅ IMPORTANT: Correct import to get the setup function.
-const { setupTelebirrWorker } = require('./telebirrWorker.js'); 
+// ✅ CORRECTED IMPORT: Ensure the path and filename are correct
+const { setupTelebirrWorker } = require('./telebirrWorker'); 
 
 // ⚠️ CRITICAL: Use environment variables for sensitive info
 const TELEBIRR_LOGIN_PIN = process.env.TELEBIRR_LOGIN_PIN;
@@ -41,6 +41,9 @@ const telebirrWithdrawalQueue = [];
 // This function now just starts the main worker loop.
 // It's called once when the bot application starts.
 const startTelebirrWorker = (bot) => {
+    // ⚠️ CRITICAL: Ensure the worker is started only once.
+    // The setupTelebirrWorker function now handles all reconnection logic internally.
+    console.log("Starting Telebirr withdrawal worker...");
     setupTelebirrWorker(bot, telebirrWithdrawalQueue, opts);
 };
 
@@ -154,10 +157,10 @@ module.exports = function (bot) {
 
         // --- Handle other callbacks ---
         if (data === "register") {
-            // ...
+            // ... (no changes needed here) ...
         }
         if (data === "Play") {
-            // ...
+            // ... (no changes needed here) ...
         }
         if (data === "deposit" || /^deposit_\d+$/.test(data)) {
             try {
@@ -187,7 +190,8 @@ module.exports = function (bot) {
             await ctx.answerCbQuery();
             return ctx.scene.enter("manualDeposit");
         }
-        if (data === "balance") {
+
+      if (data === "balance") {
             try {
                 await ctx.answerCbQuery();
                 const user = await User.findOne({ telegramId });
@@ -198,7 +202,10 @@ module.exports = function (bot) {
                         }
                     });
                 }
-                return ctx.reply(`💰 ቀሪ ሒሳብዎ: *${user.balance} ብር*`, {
+                // ⭐ Updated: Display both the regular balance and the bonus balance
+                return ctx.reply(`💰 **የሒሳብዎ ዝርዝር:**
+- **ለመውጣት የሚችል ቀሪ ሒሳብ:** *${user.balance} ብር*
+- **የጉርሻ ቀሪ ሒሳብ:** *${user.bonus_balance || 0} ብር*`, {
                     parse_mode: "Markdown"
                 });
             } catch (error) {
@@ -206,22 +213,36 @@ module.exports = function (bot) {
                 return ctx.reply("🚫 Failed to fetch your balance. Please try again.");
             }
         }
-        if (data === "invite") {
-            await ctx.answerCbQuery();
-            const inviteLink = `https://t.me/Danbingobot?start=${telegramId}`;
-            const message = `
+
+
+      if (data === "invite") {
+    await ctx.answerCbQuery();
+    const telegramId = ctx.from.id;
+    const inviteLink = `https://t.me/Danbingobot?start=${telegramId}`;
+
+    const shareMessage = encodeURIComponent(
+        `🎉 Get a **10 Birr** bonus when you join Lucky Bingo through my invite link!\n\n${inviteLink}`
+    );
+
+    const message = `
 🎉 *Invite & Earn!*
-Share Boss Bingo with your friends and earn rewards when they join using your link.
+Share Lucky Bingo with your friends and earn rewards when they join using your link.
 👤 *Your Invite Link:*
 \`${inviteLink}\`
-📋 *Click the button below to copy the link*
-            `;
-            return ctx.replyWithMarkdown(message.trim(), {
-                reply_markup: {
-                    inline_keyboard: [[{ text: "✅ Copied the Link", callback_data: "copied" }]]
-                }
-            });
+    `;
+
+    return ctx.replyWithMarkdown(message.trim(), {
+        reply_markup: {
+            inline_keyboard: [
+                [{
+                    text: "➡️ Share with Friends",
+                    url: `https://t.me/share/url?url=${shareMessage}`
+                }]
+            ]
         }
+    });
+}
+
         console.warn(`⚠️ Unhandled callback data: ${data}`);
         return;
     });

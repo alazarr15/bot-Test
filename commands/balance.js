@@ -6,10 +6,10 @@ module.exports = function (bot) {
     const telegramId = ctx.from.id;
 
     try {
-  // ✅ Rate limit: 1 request per second per user
+      // ✅ Rate limit: 1 request per user
       await userRateLimiter.consume(telegramId);
 
-      // ✅ Rate limit: 200 requests per second globally
+      // ✅ Rate limit: 200 requests globally
       await globalRateLimiter.consume("global");
       const user = await User.findOne({ telegramId });
 
@@ -21,7 +21,10 @@ module.exports = function (bot) {
         });
       }
 
-      return ctx.reply(`💰 Your current balance is: *${user.balance} Birr*`, {
+      // ⭐ New: Display both balances
+      return ctx.reply(`💰 **Your Balances:**
+- **Withdrawable Balance:** *${user.balance} Birr*
+- **Bonus Balance:** *${user.bonus_balance || 0} Birr*`, {
         parse_mode: "Markdown"
       });
 

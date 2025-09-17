@@ -173,7 +173,10 @@ module.exports = function (bot) {
                 const amount = parseFloat(messageRaw);
                 const MIN_DEPOSIT_AMOUNT = 10;
                 const MAX_DEPOSIT_AMOUNT = 10;
+                
 
+             
+                    
                 if (isNaN(amount) || amount < MIN_DEPOSIT_AMOUNT) {
                     return ctx.reply(`🚫 The minimum deposit amount is *${MIN_DEPOSIT_AMOUNT} Birr*. Please enter an amount of ${MIN_DEPOSIT_AMOUNT} Birr or more.`, { parse_mode: "Markdown" });
                 }
