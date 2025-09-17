@@ -131,33 +131,21 @@ module.exports = function (bot) {
             }
             
             // ⭐ NEW DEPOSIT FLOW LOGIC ⭐
-            if (user?.depositInProgress && user.depositInProgress.step === "getAmount") {
-                const amount = parseFloat(messageRaw);
-                const MIN_DEPOSIT_AMOUNT = 10;
-                const MAX_DEPOSIT_AMOUNT = 10; // New constant for maximum deposit
+if (user?.depositInProgress && user.depositInProgress.step === "getAmount") {
+    const amount = parseFloat(messageRaw);
+    const MIN_DEPOSIT_AMOUNT = 10;
+    const MAX_DEPOSIT_AMOUNT = 10; // New constant for maximum deposit
 
-                if (isNaN(amount) || amount < MIN_DEPOSIT_AMOUNT) {
-                    return ctx.reply(`🚫 The minimum deposit amount is *${MIN_DEPOSIT_AMOUNT} Birr*. Please enter an amount of ${MIN_DEPOSIT_AMOUNT} Birr or more.`, { parse_mode: "Markdown" });
-                }
-                
-                // Check for maximum deposit amount
-                if (amount > MAX_DEPOSIT_AMOUNT) {
-                    return ctx.reply(`🚫 The maximum deposit amount is *${MAX_DEPOSIT_AMOUNT} Birr*. Please enter an amount of ${MAX_DEPOSIT_AMOUNT} Birr or less.`, { parse_mode: "Markdown" });
-                }
-
-                await User.findOneAndUpdate(
-                    { telegramId },
-                    {
-                        $set: {
-                            "depositInProgress.data.amount": amount,
-                            "depositInProgress.step": "getTxRef"
-                        }
-                    }
-                );
-                
-                return ctx.reply("እባክዎ የማስረከቢያውን ገንዘብ ከከፈሉ በኋላ የግብይት ቁጥሩን (Transaction Reference) ይላኩልኝ።");
-            }
-
+    if (isNaN(amount) || amount < MIN_DEPOSIT_AMOUNT) {
+        return ctx.reply(`🚫 The minimum deposit amount is *${MIN_DEPOSIT_AMOUNT} Birr*. Please enter an amount of ${MIN_DEPOSIT_AMOUNT} Birr or more.`, { parse_mode: "Markdown" });
+    }
+    
+    // Check for maximum deposit amount
+    if (amount > MAX_DEPOSIT_AMOUNT) {
+        return ctx.reply(`🚫 The maximum deposit amount is *${MAX_DEPOSIT_AMOUNT} Birr*. Please enter an amount of ${MAX_DEPOSIT_AMOUNT} Birr or less.`, { parse_mode: "Markdown" });
+    }
+    // ... rest of the deposit logic
+}
             // === 1. Username Change Flow ===
             if (user?.usernameChangeInProgress) {
                 if (messageRaw.length < 3) {
