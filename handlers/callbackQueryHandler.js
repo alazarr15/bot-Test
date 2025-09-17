@@ -322,22 +322,34 @@ if (data === "Play") {
         }
 
 
-        if (data === "invite") {
-            await ctx.answerCbQuery();
-            const inviteLink = `https://t.me/Danbingobot?start=${telegramId}`;
-            const message = `
+      if (data === "invite") {
+    await ctx.answerCbQuery();
+    const telegramId = ctx.from.id;
+    const inviteLink = `https://t.me/Danbingobot?start=${telegramId}`;
+
+    const shareMessage = encodeURIComponent(
+        `🎉 Get a **10 Birr** bonus when you join Lucky Bingo through my invite link!\n\n${inviteLink}`
+    );
+
+    const message = `
 🎉 *Invite & Earn!*
-Share Boss Bingo with your friends and earn rewards when they join using your link.
+Share Lucky Bingo with your friends and earn rewards when they join using your link.
 👤 *Your Invite Link:*
 \`${inviteLink}\`
-📋 *Click the button below to copy the link*
-            `;
-            return ctx.replyWithMarkdown(message.trim(), {
-                reply_markup: {
-                    inline_keyboard: [[{ text: "✅ Copied the Link", callback_data: "copied" }]]
-                }
-            });
+    `;
+
+    return ctx.replyWithMarkdown(message.trim(), {
+        reply_markup: {
+            inline_keyboard: [
+                [{
+                    text: "➡️ Share with Friends",
+                    url: `https://t.me/share/url?url=${shareMessage}`
+                }]
+            ]
         }
+    });
+}
+
         console.warn(`⚠️ Unhandled callback data: ${data}`);
         return;
     });
