@@ -1,11 +1,8 @@
 // handlers/callbackQueryHandler.js
-// This file handles all Telegram callback queries and queues long-running tasks.
-
 const User = require("../Model/user");
 const Withdrawal = require("../Model/withdrawal");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 const { processTelebirrWithdrawal } = require('./telebirrWorker.js');
-
 
 const telebirrWithdrawalQueue = [];
 
@@ -28,14 +25,11 @@ const processQueue = (bot) => {
                             withdrawalRecord.tx_ref = result.data.tx_ref;
                         }
                         await withdrawalRecord.save();
-                        if (isSuccess) {
-                            const user = await User.findOne({ telegramId });
-                            if (user) {
-                                user.balance -= withdrawalRecord.amount;
-                                if (user.balance < 0) user.balance = 0;
-                                await user.save();
-                            }
-                        }
+
+                        // The balance deduction now happens in the `textHandler` or a dedicated pre-processing step
+                        // just before the task is added to the queue. This is a common pattern to avoid
+                        // race conditions and double-spending. The balance is only refunded on failure.
+                        
                     }
                     try {
                         await bot.telegram.sendMessage(
@@ -58,6 +52,20 @@ const processQueue = (bot) => {
                     console.error(`💀 Error processing task for user: ${task.telegramId}`);
                     try {
                         await Withdrawal.findByIdAndUpdate(task.withdrawalRecordId, { status: "failed" });
+                        
+                        // ✅ IMPORTANT: THIS IS THE REFUND LOGIC FROM THE FIRST FILE
+                        // It is crucial to add this back to prevent user funds from being lost
+                        try {
+                            const userToRefund = await User.findOne({ telegramId: String(task.telegramId) });
+                            if (userToRefund) {
+                                userToRefund.balance += task.amount; // Add the money back
+                                await userToRefund.save();
+                                console.log(`✅ Refunded ${task.amount} Birr to user ${task.telegramId}`);
+                            }
+                        } catch (refundErr) {
+                            console.error(`🚨 CRITICAL: FAILED TO REFUND USER ${task.telegramId} for amount ${task.amount}`, refundErr);
+                        }
+
                         await bot.telegram.sendMessage(
                             Number(task.telegramId),
                             `🚫 A system error occurred while processing your withdrawal of *${task.amount} Birr*. Please contact support.`,
@@ -76,10 +84,10 @@ const processQueue = (bot) => {
 
 module.exports = function (bot) {
     processQueue(bot);
+
     bot.on("callback_query", async (ctx) => {
         const telegramId = ctx.from.id;
         const data = ctx.callbackQuery?.data;
-
         try {
             await Promise.all([
                 userRateLimiter.consume(telegramId),
@@ -92,7 +100,7 @@ module.exports = function (bot) {
 
         // --- Handle WITHDRAWAL callbacks ---
         if (data.startsWith("withdraw_")) {
-            // ✅ UPDATED: Use the dedicated withdrawalInProgress field
+            // ✅ Use the database field instead of the in-memory map
             const user = await User.findOne({ telegramId });
             const userState = user?.withdrawalInProgress;
             if (!userState || !userState.step) {
@@ -101,6 +109,7 @@ module.exports = function (bot) {
             ctx.answerCbQuery();
             if (userState.step === "selectBank") {
                 const bankCode = data.split("_")[1];
+                // ✅ Update the state in the database
                 userState.data.bank_code = bankCode;
                 const withdrawalBanks = [{ name: "🏛 CBE", code: "946" }, { name: "📱 Telebirr", code: "855" }];
                 userState.data.bank_name = withdrawalBanks.find(b => b.code === bankCode)?.name;
@@ -123,7 +132,7 @@ module.exports = function (bot) {
                             status: 'pending'
                         });
                         const savedWithdrawal = await withdrawal.save();
-                        // ✅ UPDATED: Clear the withdrawalInProgress field after completion
+                        // ✅ Clear the database state after completion
                         await User.findOneAndUpdate({ telegramId }, { withdrawalInProgress: null });
                         if (bank_code === "855") {
                             telebirrWithdrawalQueue.push({
@@ -135,12 +144,12 @@ module.exports = function (bot) {
                         }
                     } catch (error) {
                         console.error("❌ Error submitting withdrawal request:", error);
-                        // ✅ UPDATED: Clear the withdrawalInProgress field on error
+                        // ✅ Clear the database state on error
                         await User.findOneAndUpdate({ telegramId }, { withdrawalInProgress: null });
                         return await ctx.reply("🚫 An error occurred while submitting your request. Please try again.");
                     }
                 } else if (data === "withdraw_cancel") {
-                    // ✅ UPDATED: Clear the withdrawalInProgress field on cancellation
+                    // ✅ Clear the database state on cancellation
                     await User.findOneAndUpdate({ telegramId }, { withdrawalInProgress: null });
                     await ctx.editMessageText("❌ Withdrawal request has been cancelled.", {
                         reply_markup: {
@@ -161,7 +170,7 @@ module.exports = function (bot) {
                     parse_mode: "Markdown"
                 });
             }
-            // ✅ UPDATED: Use the dedicated registrationInProgress field
+            // ✅ Use the database field
             await User.findOneAndUpdate({ telegramId }, { registrationInProgress: { step: 1 } }, { upsert: true });
             return ctx.reply(
                 "📲 To continue, tap 📞 Share Contact.\n\n❓ Don’t see the button? Tap the ▦ icon (with 4 dots) next to your message box.",
