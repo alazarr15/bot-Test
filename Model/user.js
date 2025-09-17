@@ -1,3 +1,5 @@
+// models/User.js
+
 const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema({
@@ -9,7 +11,7 @@ const userSchema = new mongoose.Schema({
   username: {
     type: String,
     trim: true,
-    sparse: true,
+    sparse: true, // Allows multiple null values but unique non-null values
   },
   phoneNumber: {
     type: String,
@@ -21,10 +23,6 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
-  bonus_balance: {
-    type: Number,
-    default: 0,
-  },
   registeredAt: {
     type: Date,
     default: Date.now,
@@ -33,27 +31,24 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
-  // ⭐ New: Field to track the referrer
-  referrerId: {
-    type: Number,
-    default: null,
-  },
+  // ✅ New dedicated fields for conversation state
   registrationInProgress: {
-    type: Object,
+    type: Object, // Tracks registration flow state
     default: null,
   },
   withdrawalInProgress: {
-    type: Object,
+    type: Object, // Tracks withdrawal flow state
     default: null,
   },
   transferInProgress: {
-    type: Object,
+    type: Object, // Tracks transfer flow state (separate from withdrawal)
     default: null,
   },
   usernameChangeInProgress: {
-    type: Object,
+    type: Object, // Tracks username change flow state
     default: null,
   },
+  // Add other fields from your original schema here
 });
 
 const User = mongoose.model("User", userSchema);

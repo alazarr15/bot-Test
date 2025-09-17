@@ -10,38 +10,23 @@ module.exports = function (bot) {
     try {
       const telegramId = ctx.from.id;
 
-      await userRateLimiter.consume(telegramId);
-      await globalRateLimiter.consume("global");
-
+           // ✅ Rate limit: 1 request per second per user
+           await userRateLimiter.consume(telegramId);
+     
+           // ✅ Rate limit: 200 requests per second globally
+           await globalRateLimiter.consume("global");
+      // Optional: show typing action
       await ctx.sendChatAction("upload_photo");
+
+      // Show logo
       await ctx.replyWithPhoto({ source: LOGO_PATH });
 
+      // Try to find user
       const user = await User.findOne({ telegramId });
 
       if (user) {
-        // ⭐ Case 1: Existing user. Log a message and show the main menu.
-        console.log(`User ${telegramId} already exists. Showing main menu.`);
         await ctx.reply("👋 Welcome back! Choose an option below.", buildMainMenu(user));
-
       } else {
-        // ⭐ Case 2: New user. Check for a referral payload.
-        const referrerId = ctx.startPayload;
-
-        // Create a new user document and set the referrerId if it exists and is not the user themselves
-        // We use findOneAndUpdate with upsert: true to create or update the document in one call.
-        // This also prevents race conditions if the user clicks start multiple times.
-        await User.findOneAndUpdate(
-          { telegramId },
-          {
-            telegramId,
-            referrerId: (referrerId && referrerId !== telegramId.toString()) ? referrerId : null,
-            registrationInProgress: true // Set the registration state
-          },
-          { new: true, upsert: true }
-        );
-
-        console.log(`New user ${telegramId} started the bot. Referrer ID: ${referrerId || 'None'}`);
-
         await ctx.reply(
           "👋 Welcome! Please register first to access the demo. Click the button below to register.",
           {
