@@ -205,13 +205,69 @@ module.exports = function (bot) {
             return;
         }
 
-        // --- Handle other callbacks ---
-        if (data === "register") {
-            // ... (no changes needed here) ...
+       // ... inside your bot.on('callback_query', async (ctx) => { ...
+
+if (data === "register") {
+    try {
+        await ctx.answerCbQuery();
+        const telegramId = ctx.from.id;
+
+        const user = await User.findOne({ telegramId });
+
+        if (user) {
+            return ctx.reply(`ℹ️ You are already registered as *${user.username}*`, {
+                parse_mode: "Markdown"
+            });
         }
-        if (data === "Play") {
-            // ... (no changes needed here) ...
+
+        await User.findOneAndUpdate({ telegramId }, {
+            registrationInProgress: { step: 1 }
+        }, { upsert: true });
+
+        return ctx.reply("📲 Please share your contact by clicking the button below.", {
+            reply_markup: {
+                keyboard: [[{ text: "📞 Share Contact", request_contact: true }]],
+                one_time_keyboard: true,
+                resize_keyboard: true
+            }
+        });
+    } catch (error) {
+        console.error("❌ Registration callback failed:", error);
+        return ctx.reply("🚫 An error occurred while starting registration.");
+    }
+}
+
+if (data === "Play") {
+    try {
+        await ctx.answerCbQuery();
+        const telegramId = ctx.from.id;
+
+        const user = await User.findOne({ telegramId });
+
+        if (!user) {
+            return ctx.reply("🚫 You must register first. Please click below to register:", {
+                reply_markup: {
+                    inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
+                }
+            });
         }
+
+        return ctx.reply("🎮 Choose your game:", {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "10 Birr", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=10` } }],
+                    [{ text: "20 Birr", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=20` } }],
+                    [{ text: "30 Birr", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=30` } }],
+                    [{ text: "40 Birr", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=40` } }]
+                ]
+            }
+        });
+    } catch (error) {
+        console.error("❌ Error in Play callback:", error.message);
+        return ctx.reply("🚫 Failed to show game options. Please try again later.");
+    }
+}
+
         if (data === "deposit" || /^deposit_\d+$/.test(data)) {
             try {
                 // ⭐ NEW: Clear any active flows before starting a new one
