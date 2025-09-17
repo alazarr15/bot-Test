@@ -147,76 +147,87 @@ const manualDepositScene = new Scenes.WizardScene(
     return ctx.wizard.next(); 
   },
 
-// ➡️ Step 4: Receive and verify the user's confirmation message and transaction ID
-  async (ctx) => {
-      // ⭐ Check for /cancel here
-      if (ctx.message && (ctx.message.text === "/cancel" || ctx.message.text.toLowerCase() === "cancel")) {
-          await ctx.reply("❌ Manual deposit cancelled.");
-          return ctx.scene.leave();
-      }
+ // ➡️ Step 4: Receive and verify the user's confirmation message and transaction ID
 
-      const userMessage = ctx.message?.text || ctx.message?.caption;
-      const telegramId = ctx.from.id;
-      const claimedAmount = ctx.wizard.state.depositAmount;
-
-      // Check if the message is valid
-      if (!userMessage) {
-          await ctx.reply("❌ I'm sorry, I can only process text or image captions. Please try forwarding the message again. (Type /cancel to exit)");
-          return; // Stay in this step
-      }
-
-      try {
-          // ⭐ MODIFIED: Use a single comprehensive regex to capture both CBE and Telebirr IDs
-          // This handles the full message as well as the transaction ID alone.
-          const transactionIdMatch = userMessage.match(/(FT[A-Z0-9]{10})|([A-Z0-9]{10})/i);
-          let transactionId = transactionIdMatch ? transactionIdMatch[0] : null;
-          
-          // Check for a valid ID and a length of 10 characters
-          if (!transactionId || transactionId.length !== 10) {
-              await ctx.reply("🚫 የገለበጡት መልእክት ትክክለኛ የCBE ወይም የቴሌብር የግብይት መለያ አይዟልም። እባክዎ የመጀመሪያውን ማረጋገጫ መልእክት መላልዎን ያረጋግጡ። (ለመውጣት /cancel ይጻፉ)");
-              return ctx.scene.leave();
-          }
-          console.log(`Attempting to match transaction ID: ${transactionId}`);
-
-          // ⭐ CORRECTED: FIND A MATCHING PENDING SMS IN THE DATABASE
-          // This query correctly uses the extracted 10-character transaction ID AND the amount.
-          const matchingSms = await SmsMessage.findOne({
-              status: "pending",
-              $and: [
-                  { message: { $regex: new RegExp(transactionId, "i") } },
-                  { message: { $regex: new RegExp(claimedAmount.toFixed(2).replace('.', '\\.'), "i") } }
-              ]
-          });
-        
-          if (matchingSms) {
-              await DepositRequest.update(ctx.wizard.state.depositRequestId, { status: "approved" });
-              matchingSms.status = "processed";
-              await matchingSms.save();
-
-              const user = await User.findOne({ telegramId });
-              if (user) {
-                  const updatedUser = await User.findOneAndUpdate(
-                      { telegramId },
-                      { $inc: { balance: claimedAmount } },
-                      { new: true }
-                  );
-
-                  await ctx.reply(`✅ Your deposit of ${claimedAmount} ETB has been successfully approved! Your new balance is: *${updatedUser.balance} ETB*.`, { parse_mode: 'Markdown' });
-              } else {
-                  await ctx.reply("✅ Your deposit has been approved, but we couldn't find your user account to update the balance. Please contact support.");
-              }
-
-          } else {
-              await ctx.reply("🚫 No matching deposit found. Please make sure you forwarded the correct and original confirmation message. If you believe this is an error, please contact support. (Type /cancel to exit)");
-          }
-      } catch (error) {
-          console.error("❌ Error processing manual deposit message:", error);
-          await ctx.reply("🚫 An error occurred while processing your request. Please try again or contact support. (Type /cancel to exit)");
-      }
-
-      // Regardless of outcome, end the scene
+async (ctx) => {
+  // ⭐ Check for /cancel here
+  if (ctx.message && (ctx.message.text === "/cancel" || ctx.message.text.toLowerCase() === "cancel")) {
+      await ctx.reply("❌ Manual deposit cancelled.");
       return ctx.scene.leave();
   }
+
+  const userMessage = ctx.message?.text || ctx.message?.caption;
+  const telegramId = ctx.from.id;
+  const claimedAmount = ctx.wizard.state.depositAmount;
+
+  // Check if the message is valid
+  if (!userMessage) {
+      await ctx.reply("❌ I'm sorry, I can only process text or image captions. Please try forwarding the message again. (Type /cancel to exit)");
+      return; // Stay in this step
+  }
+
+  try {
+      // ⭐ UPDATED: Use a more specific regex to match both CBE and Telebirr IDs
+      // This is more secure and reliable than the previous version.
+      const cbeRegex = /(FT[A-Z0-9]{10})/i;
+      const telebirrRegex = /(?:transaction number is|የሂሳብ እንቅስቃሴ ቁጥርዎ|Lakkoofsi sochii maallaqaa keessan|ቁፅሪ ሒሳብ ዝተንቀሳቀሰ|lambarka hawlgalkaaguna waa)\s*([A-Z0-9]{10})\'?/i;
+
+      let transactionId = null;
+
+      const cbeMatch = userMessage.match(cbeRegex);
+      const telebirrMatch = userMessage.match(telebirrRegex);
+      
+      // Check which pattern matched and extract the ID
+      if (cbeMatch && cbeMatch[1]) {
+          transactionId = cbeMatch[1];
+      } else if (telebirrMatch && telebirrMatch[1]) {
+          transactionId = telebirrMatch[1];
+      }
+
+      // Check for a valid ID
+      if (!transactionId) {
+          await ctx.reply("🚫 የገለበጡት መልእክት ትክክለኛ የCBE ወይም የቴሌብር የግብይት መለያ አይዟልም። እባክዎ የመጀመሪያውን ማረጋገጫ መልእክት መላልዎን ያረጋግጡ። (ለመውጣት /cancel ይጻፉ)");
+          return ctx.scene.leave();
+      }
+      console.log(`Attempting to match transaction ID: ${transactionId}`);
+
+      // Find a matching pending SMS in the database
+      const matchingSms = await SmsMessage.findOne({
+          status: "pending",
+          $and: [
+              { message: { $regex: new RegExp(transactionId, "i") } },
+              { message: { $regex: new RegExp(claimedAmount.toFixed(2).replace('.', '\\.'), "i") } }
+          ]
+      });
+    
+      if (matchingSms) {
+          await DepositRequest.update(ctx.wizard.state.depositRequestId, { status: "approved" });
+          matchingSms.status = "processed";
+          await matchingSms.save();
+
+          const user = await User.findOne({ telegramId });
+          if (user) {
+              const updatedUser = await User.findOneAndUpdate(
+                  { telegramId },
+                  { $inc: { balance: claimedAmount } },
+                  { new: true }
+              );
+
+              await ctx.reply(`✅ Your deposit of ${claimedAmount} ETB has been successfully approved! Your new balance is: *${updatedUser.balance} ETB*.`, { parse_mode: 'Markdown' });
+          } else {
+              await ctx.reply("✅ Your deposit has been approved, but we couldn't find your user account to update the balance. Please contact support.");
+          }
+      } else {
+          await ctx.reply("🚫 No matching deposit found. Please make sure you forwarded the correct and original confirmation message. If you believe this is an error, please contact support. (Type /cancel to exit)");
+      }
+  } catch (error) {
+      console.error("❌ Error processing manual deposit message:", error);
+      await ctx.reply("🚫 An error occurred while processing your request. Please try again or contact support. (Type /cancel to exit)");
+  }
+
+  // Regardless of outcome, end the scene
+  return ctx.scene.leave();
+}
 );
 
 // Create a stage to manage the scenes
