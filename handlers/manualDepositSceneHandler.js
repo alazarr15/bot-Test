@@ -61,110 +61,116 @@ const manualDepositScene = new Scenes.WizardScene(
   },
 
   // Step 2: Receive the amount and ask for the payment method
-  async (ctx) => {
-    // ⭐ Check for /cancel here
-    if (ctx.message && (ctx.message.text === "/cancel" || ctx.message.text.toLowerCase() === "cancel")) {
-      await ctx.reply("❌ Manual deposit cancelled.");
-      return ctx.scene.leave();
-    }
+      async (ctx) => {
+        // ⭐ Check for /cancel here
+        if (ctx.message && (ctx.message.text === "/cancel" || ctx.message.text.toLowerCase() === "cancel")) {
+          await ctx.reply("❌ Manual deposit cancelled.");
+          return ctx.scene.leave();
+        }
 
-    const amount = parseFloat(ctx.message.text);
-    
-    // Validate if the input is a valid positive number
-    if (isNaN(amount) || amount <= 0) {
-      // ⭐ Added cancel instruction
-    await ctx.reply("🚫 የተሳሳተ መጠን። እባክዎ ትክክለኛ ቁጥር ያስገቡ (ለምሳሌ፦ 100)። (ለመውጣት /cancel ይጻፉ)");  
-    return; // Stay on this step until valid input is received
-    }
+        const amount = parseFloat(ctx.message.text);
+        
+        // Validate if the input is a valid positive number
+        if (isNaN(amount) || amount <= 0) {
+          // ⭐ Added cancel instruction
+        await ctx.reply("🚫 የተሳሳተ መጠን። እባክዎ ትክክለኛ ቁጥር ያስገቡ (ለምሳሌ፦ 100)። (ለመውጣት /cancel ይጻፉ)");  
+        return; // Stay on this step until valid input is received
+        }
 
-    ctx.wizard.state.depositAmount = amount;
-    
-    // Provide inline keyboard with payment options
-    await ctx.reply(`💰 የሚፈልጉት ${amount} ብር ለማስገባት ነው። እባክዎ የክፍያ ዘዴዎን ይምረጡ: (ለመውጣት /cancel ይጻፉ)`, {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: "CBE to CBE", callback_data: "payment_cbe" }],
-          [{ text: "Telebirr To Telebirr", callback_data: "payment_telebirr" }]
-        ],
+        ctx.wizard.state.depositAmount = amount;
+        
+        // Provide inline keyboard with payment options
+        await ctx.reply(`💰 የሚፈልጉት ${amount} ብር ለማስገባት ነው። እባክዎ የክፍያ ዘዴዎን ይምረጡ: (ለመውጣት /cancel ይጻፉ)`, {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "CBE to CBE", callback_data: "payment_cbe" }],
+              [{ text: "Telebirr To Telebirr", callback_data: "payment_telebirr" }]
+            ],
+          },
+        });
+
+        return ctx.wizard.next(); // Go to the next step
       },
-    });
 
-    return ctx.wizard.next(); // Go to the next step
-  },
+      // Step 3: Handle the payment method selection and provide instructions
+    async (ctx) => {
+      if (!ctx.callbackQuery || !ctx.callbackQuery.data.startsWith('payment_')) {
+        await ctx.reply(
+          "Please use the buttons provided to select a payment method. (Type /cancel to exit)"
+        );
+        return;
+      }
 
-  // Step 3: Handle the payment method selection and provide instructions
-  async (ctx) => {
-    if (!ctx.callbackQuery || !ctx.callbackQuery.data.startsWith('payment_')) {
-      await ctx.reply("Please use the buttons provided to select a payment method. (Type /cancel to exit)");
-      return;
-    }
+      const method = ctx.callbackQuery.data;
+      const amount = ctx.wizard.state.depositAmount;
 
-    const method = ctx.callbackQuery.data;
-    const amount = ctx.wizard.state.depositAmount;
-    
-    let instructions = "";
-    let depositType = "";
+      let instructions = "";
+      let depositType = "";
 
-    if (method === "payment_cbe") {
+      if (method === "payment_cbe") {
         depositType = "CBE";
-        // ⭐ CORRECTED TEXT: Note the backslashes \ before special characters
         instructions = `
-        የኢትዮጵያ ንግድ ባንክ አካውንት
-        \`1000454544246\`
+    \`\`\`
+    የኢትዮጵያ ንግድ ባንክ አካውንት
+    1000454544246
 
-        1\\. ከላይ ባለው የኢትዮጵያ ንግድ ባንክ አካውንት ${amount} ብር ያስገቡ
+    1. ከላይ ባለው የኢትዮጵያ ንግድ ባንክ አካውንት ${amount} ብር ያስገቡ
 
-        2\\. የምትልኩት የገንዘብ መጠን እና እዚ ላይ እንዲሞላልዎ የምታስገቡት የብር መጠን ተመሳሳይ መሆኑን እርግጠኛ ይሁኑ
+    2. የምትልኩት የገንዘብ መጠን እና እዚ ላይ እንዲሞላልዎ የምታስገቡት የብር መጠን ተመሳሳይ መሆኑን እርግጠኛ ይሁኑ
 
-        3\\. ብሩን ስትልኩ የከፈላችሁበትን መረጃ የያዘ አጭር የጹሁፍ መልክት(sms) ከኢትዮጵያ ንግድ ባንክ ይደርሳችኋል
+    3. ብሩን ስትልኩ የከፈላችሁበትን መረጃ የያዘ አጭር የጹሁፍ መልክት(sms) ከኢትዮጵያ ንግድ ባንክ ይደርሳችኋል
 
-        4\\. የደረሳችሁን አጭር የጹሁፍ መለክት(sms) ሙሉዉን ኮፒ(copy) በማረግ ከታች ባለው የቴሌግራም የጹሁፍ ማስገቢያው ላይ ፔስት(paste) በማረግ ይላኩት 
+    4. የደረሳችሁን አጭር የጹሁፍ መለክት(sms) ሙሉዉን ኮፒ(copy) በማረግ ከታች ባለው የቴሌግራም የጹሁፍ ማስገቢያው ላይ ፔስት(paste) በማረግ ይላኩት 
 
-        5\\. ብር ስትልኩ የምትጠቀሙት USSD\(\*889#\) ከሆነ አንዳንዴ አጭር የጹሁፍ መለክት(sms) ላይገባላቹ ስለሚችል ከUSSD\(\*889#\) ሂደት መጨረሻ ላይ Complete የሚለው ላይ ስደርሱ 3 ቁጥርን በመጫን የትራንዛክሽን ቁጥሩን ሲያሳያቹህ ትራንዛክሽን ቁጥሩን ጽፎ ማስቀመጥ ይኖርባችኋል 
+    5. ብር ስትልኩ የምትጠቀሙት USSD (*889#) ከሆነ አንዳንዴ አጭር የጹሁፍ መለክት(sms) ላይ ገባላቹ ስለሚችል ከUSSD (*889#) ሂደት መጨረሻ ላይ Complete የሚለው ላይ ስደርሱ 3 ቁጥርን በመጫን የትራንዛክሽን ቁጥሩን ሲያሳያቹህ ትራንዛክሽን ቁጥሩን ጽፎ ማስቀመጥ ይኖርባችኋል 
 
-        ማሳሰቢያ፡ 1\\. አጭር የጹሁፍ መለክት(sms) ካልደረሳቹ ያለትራንዛክሽን ቁጥር ሲስተሙ ዋሌት ስለማይሞላላቹ የከፈላችሁበትን ደረሰኝ ከባንክ በመቀበል በማንኛውም ሰአት ትራንዛክሽን ቁጥሩን ቦቱ ላይ ማስገባት ትችላላቹ 
+    ማሳሰቢያ: 1. አጭር የጹሁፍ መለክት(sms) ካልደረሳቹ ያለ ትራንዛክሽን ቁጥር ሲስተሙ ዋሌት ስለማይሞላላቹ የከፈላችሁበትን ደረሰኝ ከባንክ በመቀበል በማንኛውም ሰአት ትራንዛክሽን ቁጥሩን ቦቱ ላይ ማስገባት ትችላላቹ 
 
-        የሚያጋጥማቹ የክፍያ ችግር ካለ @luckybingos በዚ ኤጀንቱን ማዋራት ይችላሉ::
+    የሚያጋጥማቹ የክፍያ ችግር ካለ @luckybingos በዚ ኤጀንቱን ማዋራት ይችላሉ::
 
-        የከፈለችሁበትን አጭр የጹሁፍ መለክት(sms) ወይም FT ብሎ የሚጀምረዉን የትራንዛክሽን ቁጥር እዚ ላይ ያስገቡት 👇👇👇`;
-
-    } else if (method === "payment_telebirr") {
+    የከፈለችሁበትን አጭር የጹሁፍ መለክት(sms) ወይም FT ብሎ የሚጀምረዉን የትራንዛክሽን ቁጥር እዚ ላይ ያስገቡት 👇👇👇
+    \`\`\`
+    `;
+      } else if (method === "payment_telebirr") {
         depositType = "ቴሌብር";
-        // ⭐ CORRECTED TEXT: Note the bold formatting is kept, but periods are escaped
         instructions = `
-        📱 *የቴሌብር ዝርዝሮች*
-        የቴሌብር አካውንት
-        \`0930534417\`
+    \`\`\`
+    📱 የቴሌብር ዝርዝሮች
+    የቴሌብር አካውንት
+    0930534417
 
-        1\\. ከላይ ባለው የቴሌብር አካውንት ${amount} ብር ያስገቡ
+    1. ከላይ ባለው የቴሌብር አካውንት ${amount} ብር ያስገቡ
 
-        2\\. የምትልኩት የገንዘብ መጠን እና እዚ ላይ እንዲሞላልዎ የምታስገቡት የብር መጠን ተመሳሳይ መሆኑን እርግጠኛ ይሁኑ
+    2. የምትልኩት የገንዘብ መጠን እና እዚ ላይ እንዲሞላልዎ የምታስገቡት የብር መጠን ተመሳሳይ መሆኑን እርግጠኛ ይሁኑ
 
-        3\\. ብሩን ስትልኩ የከፈላችሁበትን መረጃ የያዝ አጭር የጹሁፍ መለክት(sms) ከቴሌብር ይደርሳችኋል
+    3. ብሩን ስትልኩ የከፈላችሁበትን መረጃ የያዝ አጭር የጹሁፍ መለክት(sms) ከቴሌብር ይደርሳችኋል
 
-        4\\. የደረሳችሁን አጭር የጹሁፍ መለክት(sms) ሙሉዉን ኮፒ(copy) በማረግ ከታሽ ባለው የቴሌግራም የጹሁፍ ማስገቢአው ላይ ፔስት(paste) በማረግ ይላኩት 
-            
-        የሚያጋጥማቹ የክፍያ ችግር ካለ @luckybingos በዚ ኤጀንቱን ማዋራት ይችላሉ 
+    4. የደረሳችሁን አጭር የጹሁፍ መለክት(sms) ሙሉዉን ኮፒ(copy) በማረግ ከታች ባለው የቴሌግራም የጹሁፍ ማስገቢያው ላይ ፔስት(paste) በማረግ ይላኩት 
 
-        የከፈለችሁበትን አጭር የጹሁፍ መለክት(sms) እዚ ላይ ያስገቡት 👇👇👇`;
-    }
+    የሚያጋጥማቹ የክፍያ ችግር ካለ @luckybingos በዚ ኤጀንቱን ማዋራት ይችላሉ
 
-    await ctx.answerCbQuery();
-    // ⭐ CORRECTED PARSE MODE
-    await ctx.reply(instructions, { parse_mode: "MarkdownV2" });
+    የከፈለችሁበትን አጭር የጹሁፍ መለክት(sms) እዚ ላይ ያስገቡት 👇👇👇
+    \`\`\`
+    `;
+      }
 
-    const newDeposit = await DepositRequest.create({
-      telegramId: ctx.from.id,
-      amount: amount,
-      method: depositType,
-      status: "pending",
-    });
-    ctx.wizard.state.depositRequestId = newDeposit.id;
+      await ctx.answerCbQuery();
 
-    console.log("Created deposit request ID:", newDeposit.id);
+      // Send as MarkdownV2 code block (copyable)
+      await ctx.reply(instructions, { parse_mode: "MarkdownV2" });
 
-    return ctx.wizard.next(); 
-},
+      const newDeposit = await DepositRequest.create({
+        telegramId: ctx.from.id,
+        amount: amount,
+        method: depositType,
+        status: "pending",
+      });
+      ctx.wizard.state.depositRequestId = newDeposit.id;
+
+      console.log("Created deposit request ID:", newDeposit.id);
+
+      return ctx.wizard.next();
+    },
 
  // ➡️ Step 4: Receive and verify the user's confirmation message and transaction ID
 
