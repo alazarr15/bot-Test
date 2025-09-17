@@ -109,24 +109,24 @@ const manualDepositScene = new Scenes.WizardScene(
     let depositType = "";
 
    // Set instructions based on the user's choice
-if (method === "payment_cbe") {
-  depositType = "CBE";
-  instructions = `
-🏦 **የንግድ ባንክ ኢትዮጵያ (CBE) የባንክ ሂሳብ ዝርዝር**
-የሂሳብ ስም: BINGO GAMES 
-የሂሳብ ቁጥር: 1000454544246
-መጠን: ${amount} ብር
+    if (method === "payment_cbe") {
+      depositType = "CBE";
+      instructions = `
+    🏦 **የንግድ ባንክ ኢትዮጵያ (CBE) የባንክ ሂሳብ ዝርዝር**
+    የሂሳብ ስም: BINGO GAMES 
+    የሂሳብ ቁጥር: 1000454544246
+    መጠን: ${amount} ብር
 
-እባክዎ ከላይ ያለውን ሂሳብ ቁጥር መጠን ያስተላልፉ እና ከዚያ **የተጠቃሚውን ማረጋገጫ መልእክት ወይም የግብይት ስክሪንሾት** ወደዚህ ቻት ይላኩ። (ለመውጣት /cancel ይጻፉ)`;
-} else if (method === "payment_telebirr") {
-  depositType = "ቴሌብር";
-  instructions = `
-📱 **የቴሌብር ዝርዝሮች**
-ስልክ ቁጥር: 0930534417
-መጠን: ${amount} ብር
+    እባክዎ ከላይ ያለውን ሂሳብ ቁጥር መጠን ያስተላልፉ እና ከዚያ **የተጠቃሚውን ማረጋገጫ መልእክት ወይም የግብይት ስክሪንሾት** ወደዚህ ቻት ይላኩ። (ለመውጣት /cancel ይጻፉ)`;
+    } else if (method === "payment_telebirr") {
+      depositType = "ቴሌብር";
+      instructions = `
+    📱 **የቴሌብር ዝርዝሮች**
+    ስልክ ቁጥር: 0930534417
+    መጠን: ${amount} ብር
 
-እባክዎ ከላይ ያለውን ቁጥር መጠን ይላኩ እና ከዚያ **የተጠቃሚውን ማረጋገጫ መልእክት ወይም የግብይት ስክሪንሾት** ወደዚህ ቻት ይላኩ። (ለመውጣት /cancel ይጻፉ)`;
-}
+    እባክዎ ከላይ ያለውን ቁጥር መጠን ይላኩ እና ከዚያ **የተጠቃሚውን ማረጋገጫ መልእክት ወይም የግብይት ስክሪንሾት** ወደዚህ ቻት ይላኩ። (ለመውጣት /cancel ይጻፉ)`;
+    }
 
     // Acknowledge the button click and show the instructions
     await ctx.answerCbQuery();
@@ -168,8 +168,8 @@ if (method === "payment_cbe") {
       try {
           // ⭐ MODIFIED: Use a more flexible regex to capture both CBE and Telebirr IDs from the user's message
           const cbeRegex = /(FT[A-Z0-9]{10})/i;
-          const telebirrRegex = /(?:Your transaction number is|የሂሳብ እንቅስቃሴ ቁጥርዎ)\s*([A-Z0-9]{10})/i; // Matches the sender's Telebirr confirmation format
-
+          const telebirrRegex = /(?:transaction number is|የሂሳብ እንቅስቃሴ ቁጥርዎ|Lakkoofsi sochii maallaqaa|ቁፅሪ ሒሳብ ዝተንቀሳቀሰ|lambarka hawlgalkaaguna waa)\s*([A-Z0-9]{10})/i; // Matches common phrases in all languages
+        
           let transactionIdMatch = userMessage.match(cbeRegex);
           let transactionId = null;
 
