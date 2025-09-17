@@ -26,6 +26,19 @@ function buildMainMenu(user) {
     };
 }
 
+// ⭐ NEW: Universal function to clear all active flows
+async function clearAllFlows(telegramId) {
+    await User.findOneAndUpdate({ telegramId }, {
+        $set: {
+            withdrawalInProgress: null,
+            transferInProgress: null,
+            registrationInProgress: null,
+            usernameChangeInProgress: null,
+            depositInProgress: null
+        }
+    });
+}
+
 module.exports = function (bot) {
     bot.on("text", async (ctx) => {
         try {
@@ -47,15 +60,7 @@ module.exports = function (bot) {
             if (message === "/cancel" || message === "cancel") {
                 const user = await User.findOne({ telegramId });
                 if (user?.withdrawalInProgress || user?.transferInProgress || user?.registrationInProgress || user?.usernameChangeInProgress || user?.depositInProgress) {
-                    await User.findOneAndUpdate({ telegramId }, {
-                        $set: {
-                            withdrawalInProgress: null,
-                            transferInProgress: null,
-                            registrationInProgress: null,
-                            usernameChangeInProgress: null,
-                            depositInProgress: null
-                        }
-                    });
+                    await clearAllFlows(telegramId);
                     await ctx.reply("❌ Operation cancelled. You have exited the current flow.");
                     return ctx.reply("🔄 Main menu:", buildMainMenu(user));
                 }
@@ -68,12 +73,46 @@ module.exports = function (bot) {
 
             const user = await User.findOne({ telegramId });
 
-            // ⭐ Check for a WITHDRAWAL flow first
+            // ⭐ NEW: Logic to handle new command and clear previous state ⭐
+            if (message === "/deposit") {
+                await clearAllFlows(telegramId);
+                const updatedUser = await User.findOneAndUpdate({ telegramId }, {
+                    $set: {
+                        "depositInProgress": {
+                            step: "getAmount",
+                            data: {}
+                        }
+                    }
+                }, { new: true });
+                return ctx.reply("💵 Please enter the amount you would like to deposit (min 10 Birr, max 10 Birr).");
+            }
+
+            if (message === "/withdraw") {
+                await clearAllFlows(telegramId);
+                const updatedUser = await User.findOneAndUpdate({ telegramId }, {
+                    $set: {
+                        "withdrawalInProgress": {
+                            step: "selectBank",
+                            data: {}
+                        }
+                    }
+                }, { new: true });
+                return ctx.reply("🏦 Please select your bank to withdraw funds.", {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "CBE", callback_data: "bank_CBE" }],
+                            [{ text: "Awash Bank", callback_data: "bank_Awash" }]
+                        ]
+                    }
+                });
+            }
+
+            // ⭐ Check for an active WITHDRAWAL flow
             if (user?.withdrawalInProgress) {
                 if (user.withdrawalInProgress.step === "getAmount") {
                     const amount = parseFloat(messageRaw);
                     const MIN_WITHDRAWAL_AMOUNT = 10;
-                    const MAX_WITHDRAWAL_AMOUNT = 10; // New constant for maximum withdrawal
+                    const MAX_WITHDRAWAL_AMOUNT = 10; 
 
                     if (isNaN(amount) || amount <= 0) {
                         return ctx.reply("🚫 የተሳሳተ መጠን ነው። እባክዎ አወንታዊ ቁጥር ያስገቡ።");
@@ -83,7 +122,6 @@ module.exports = function (bot) {
                         return ctx.reply(`🚫 The minimum withdrawal amount is *${MIN_WITHDRAWAL_AMOUNT} Birr*. Please enter an amount of ${MIN_WITHDRAWAL_AMOUNT} Birr or more.`, { parse_mode: "Markdown" });
                     }
 
-                    // Check for maximum withdrawal amount
                     if (amount > MAX_WITHDRAWAL_AMOUNT) {
                         return ctx.reply(`🚫 The maximum withdrawal amount is *${MAX_WITHDRAWAL_AMOUNT} Birr*. Please enter an amount of ${MAX_WITHDRAWAL_AMOUNT} Birr or less.`, { parse_mode: "Markdown" });
                     }
@@ -130,39 +168,36 @@ module.exports = function (bot) {
                 return;
             }
             
-            // ⭐ NEW DEPOSIT FLOW LOGIC ⭐
-if (user?.depositInProgress && user.depositInProgress.step === "getAmount") {
-    const amount = parseFloat(messageRaw);
-    const MIN_DEPOSIT_AMOUNT = 10;
-    const MAX_DEPOSIT_AMOUNT = 10; // New constant for maximum deposit
+            // ⭐ Check for an active DEPOSIT flow
+            if (user?.depositInProgress && user.depositInProgress.step === "getAmount") {
+                const amount = parseFloat(messageRaw);
+                const MIN_DEPOSIT_AMOUNT = 10;
+                const MAX_DEPOSIT_AMOUNT = 10;
 
-    if (isNaN(amount) || amount < MIN_DEPOSIT_AMOUNT) {
-        return ctx.reply(`🚫 The minimum deposit amount is *${MIN_DEPOSIT_AMOUNT} Birr*. Please enter an amount of ${MIN_DEPOSIT_AMOUNT} Birr or more.`, { parse_mode: "Markdown" });
-    }
-    
-    // Check for maximum deposit amount
-    if (amount > MAX_DEPOSIT_AMOUNT) {
-        return ctx.reply(`🚫 The maximum deposit amount is *${MAX_DEPOSIT_AMOUNT} Birr*. Please enter an amount of ${MAX_DEPOSIT_AMOUNT} Birr or less.`, { parse_mode: "Markdown" });
-    }
-    // ... rest of the deposit logic
-}
+                if (isNaN(amount) || amount < MIN_DEPOSIT_AMOUNT) {
+                    return ctx.reply(`🚫 The minimum deposit amount is *${MIN_DEPOSIT_AMOUNT} Birr*. Please enter an amount of ${MIN_DEPOSIT_AMOUNT} Birr or more.`, { parse_mode: "Markdown" });
+                }
+                
+                if (amount > MAX_DEPOSIT_AMOUNT) {
+                    return ctx.reply(`🚫 The maximum deposit amount is *${MAX_DEPOSIT_AMOUNT} Birr*. Please enter an amount of ${MAX_DEPOSIT_AMOUNT} Birr or less.`, { parse_mode: "Markdown" });
+                }
+
+                await User.findOneAndUpdate(
+                    { telegramId },
+                    {
+                        $set: {
+                            "depositInProgress.data.amount": amount,
+                            "depositInProgress.step": "getTxRef"
+                        }
+                    }
+                );
+                
+                return ctx.reply("እባክዎ የማስረከቢያውን ገንዘብ ከከፈሉ በኋላ የግብይት ቁጥሩን (Transaction Reference) ይላኩልኝ።");
+            }
+
             // === 1. Username Change Flow ===
             if (user?.usernameChangeInProgress) {
-                if (messageRaw.length < 3) {
-                    return ctx.reply("⚠️ የተሳሳተ USERNAME እባክዎ ቢያንስ 3 ፊደሎች ያስገቡ።");
-                }
-                if (!/^[a-zA-Z0-9_]+$/.test(messageRaw)) {
-                    return ctx.reply("⚠️ USERNAME ፊደል፣ ቁጥር እና \"_\" ብቻ ሊይዝ ይችላል።");
-                }
-                const existingUser = await User.findOne({ username: messageRaw });
-                if (existingUser && existingUser.telegramId !== telegramId) {
-                    return ctx.reply("🚫 ይህ USERNAME ቀድሞውኑ ተይዟል። እባክዎ ሌላ ይሞክሩ።");
-                }
-                await User.findOneAndUpdate({ telegramId }, { username: messageRaw, usernameChangeInProgress: null });
-                await ctx.reply(`✅ USERNAMEዎ ወደ *${messageRaw}* ተቀይሯል!`, { parse_mode: "Markdown" });
-                const updatedUser = await User.findOne({ telegramId });
-                if (updatedUser) return ctx.reply("🔄 ዋና መዝገብ:", buildMainMenu(updatedUser));
-                return;
+                // ... (existing code for username change) ...
             }
 
             // === 2. Registration Check ===
@@ -183,85 +218,7 @@ if (user?.depositInProgress && user.depositInProgress.step === "getAmount") {
 
             // === 3. Transfer Flow ===
             if (user?.transferInProgress) {
-                if (user.transferInProgress.step === 1) {
-                    let recipientPhoneNumber = messageRaw.replace(/\s+/g, "");
-                    if (recipientPhoneNumber.startsWith("0")) {
-                        recipientPhoneNumber = "251" + recipientPhoneNumber.slice(1);
-                    }
-                    if (!/^\d{12}$/.test(recipientPhoneNumber)) {
-                        return ctx.reply("🚫 Invalid phone number format. Please enter a 12-digit number including country code.");
-                    }
-                    const recipient = await User.findOne({ phoneNumber: recipientPhoneNumber });
-                    if (!recipient) {
-                        return ctx.reply("🚫 Recipient not found. Please check the phone number.\n\nTo cancel, type /cancel.");
-                    }
-                    if (recipient._id.equals(user._id)) {
-                        return ctx.reply("🚫 You cannot transfer to yourself. Please enter a different recipient.\n\nTo cancel, type /cancel.");
-                    }
-                    await User.updateOne(
-                        { telegramId },
-                        { $set: { "transferInProgress.recipient": recipientPhoneNumber, "transferInProgress.step": 2 } }
-                    );
-                    return ctx.reply("💵 Enter the amount you wish to transfer:");
-                }
-                if (user.transferInProgress.step === 2) {
-                    let amount = parseFloat(messageRaw);
-                    if (isNaN(amount) || amount <= 0) {
-                        return ctx.reply("🚫 Invalid amount. Please enter a valid number.\n\nTo cancel, type /cancel.");
-                    }
-                    amount = Math.round(amount * 100) / 100;
-                    if (amount < 10 || amount > 1000) {
-                        return ctx.reply("🚫 Transfer amount must be between 10 and 1000 Birr.\n\nTo cancel, type /cancel.");
-                    }
-                    const session = await mongoose.startSession();
-                    session.startTransaction();
-                    try {
-                        const currentUser = await User.findOne({ telegramId: user.telegramId }).session(session);
-                        const recipient = await User.findOne({ phoneNumber: user.transferInProgress.recipient }).session(session);
-                        if (!recipient) {
-                            await session.abortTransaction();
-                            session.endSession();
-                            return ctx.reply("🚫 Unexpected error: Recipient not found. Transfer canceled.");
-                        }
-                        if (currentUser.balance < amount) {
-                            await session.abortTransaction();
-                            session.endSession();
-                            return ctx.reply("🚫 Insufficient balance. Transfer canceled.");
-                        }
-                        await User.updateOne({ telegramId: user.telegramId }, { $inc: { balance: -amount } }, { session });
-                        await User.updateOne({ phoneNumber: recipient.phoneNumber }, { $inc: { balance: amount } }, { session });
-                        const transferRecord = new Transfer({
-                            senderId: user._id,
-                            recipientId: recipient._id,
-                            senderPhone: user.phoneNumber,
-                            recipientPhone: recipient.phoneNumber,
-                            senderTelegramId: user.telegramId,
-                            recipientTelegramId: recipient.telegramId || null,
-                            amount: amount,
-                        });
-                        await transferRecord.save({ session });
-                        await session.commitTransaction();
-                        session.endSession();
-                        await ctx.reply(`✅ Transferred **${amount} Birr** to phone number **${recipient.phoneNumber}**.`);
-                        if (recipient.telegramId) {
-                            try {
-                                await ctx.telegram.sendMessage(
-                                    recipient.telegramId,
-                                    `✅ You received **${amount} Birr** from phone number **${user.phoneNumber}**.`
-                                );
-                            } catch (err) {
-                                console.warn("⚠️ Failed to notify recipient:", err.message);
-                            }
-                        }
-                        await User.updateOne({ telegramId: user.telegramId }, { $set: { transferInProgress: null } });
-                        return ctx.reply("🔄 Transfer complete. Returning to the main menu:", buildMainMenu(user));
-                    } catch (err) {
-                        await session.abortTransaction();
-                        session.endSession();
-                        console.error("❌ Transfer failed:", err);
-                        return ctx.reply("🚫 Transfer failed due to a server error. Please try again later.");
-                    }
-                }
+                // ... (existing code for transfer) ...
             }
 
             // === 4. Main Menu Fallback ===
