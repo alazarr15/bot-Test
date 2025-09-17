@@ -23,7 +23,7 @@ module.exports = function (bot) {
             }
 
             // ✅ NEW: Check if balance is at least 50 Birr
-            const MIN_WITHDRAWAL_AMOUNT = 10;
+            const MIN_WITHDRAWAL_AMOUNT = 50;
             if (user.balance < MIN_WITHDRAWAL_AMOUNT) {
                 return ctx.reply(`🚫 Your balance must be at least *${MIN_WITHDRAWAL_AMOUNT} Birr* to withdraw. Your current balance is *${user.balance} Birr*.`, { parse_mode: "Markdown" });
             }
