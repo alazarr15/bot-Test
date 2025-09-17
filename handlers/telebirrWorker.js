@@ -1,11 +1,10 @@
 // telebirrWorker_final.js
-// VERSION 6.1 - Using single, long-lived Appium session for efficiency and stability.
+// VERSION 6.3 - Refactored worker loop to be more resilient.
 
 const wdio = require("webdriverio");
 const User = require("../Model/user");
 const Withdrawal = require("../Model/withdrawal");
 
-// ⚠️ SECURITY: Use environment variables for sensitive info
 const TELEBIRR_LOGIN_PIN = process.env.TELEBIRR_LOGIN_PIN;
 const TELEBIRR_PHONE = process.env.TELEBIRR_PHONE;
 const APPIUM_DEVICE_NAME = process.env.APPIUM_DEVICE_NAME;
@@ -14,7 +13,6 @@ if (!TELEBIRR_LOGIN_PIN || !TELEBIRR_PHONE || !APPIUM_DEVICE_NAME) {
     throw new Error("Missing required environment variables: TELEBIRR_LOGIN_PIN, TELEBIRR_PHONE, or APPIUM_DEVICE_NAME.");
 }
 
-// --- Centralized Selectors for Easy Maintenance ---
 const SELECTORS = {
     LOGIN_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
     LOGIN_PIN_KEYPAD: {
@@ -34,8 +32,6 @@ const SELECTORS = {
     TRANSACTION_PIN_KEYPAD: (digit) => `android=new UiSelector().resourceId("cn.tydic.ethiopay:id/tv_key").text("${digit}")`,
     TRANSACTION_FINISHED_BTN: "id=cn.tydic.ethiopay:id/btn_confirm",
 };
-
-// --- Helper Functions ---
 
 async function isDisplayedWithin(driver, selector, timeout = 30000) { 
     try {
@@ -120,12 +116,6 @@ async function navigateToHome(driver) {
     throw new Error("FATAL: Could not navigate to the home screen after multiple attempts.");
 }
 
-// --- Main Worker Process ---
-
-/**
- * The core function that handles the withdrawal automation.
- * It is now passed the pre-initialized driver instance.
- */
 async function processTelebirrWithdrawal({ driver, amount, account_number }) {
     const result = { status: "", message: "", data: null };
     if (!driver || !driver.is) {
@@ -165,14 +155,15 @@ async function processTelebirrWithdrawal({ driver, amount, account_number }) {
         await enterPin(driver, TELEBIRR_LOGIN_PIN, true);
         await (await driver.$(SELECTORS.TRANSACTION_FINISHED_BTN)).click();
         console.log("✅ Transaction appears to be successful.");
-        result.status = "success";
+        result.status = "completed";
         result.message = "Transaction completed successfully";
         result.data = { phone: account_number, amount: amount };
     } catch (err) {
         console.error("❌ Error during automation:", err);
-        result.status = "failed";
+        result.status = "rejected";
         result.message = err.message || "Unknown error";
         result.data = { error: err.toString() };
+        throw err;
     } finally {
         return result;
     }
@@ -186,72 +177,90 @@ async function processTelebirrWithdrawal({ driver, amount, account_number }) {
  */
 const setupTelebirrWorker = async (bot, queue, opts) => {
     let driver = null;
-    try {
-        console.log("Starting a long-lived Appium session...");
-        driver = await wdio.remote(opts);
-        console.log("✅ Appium session successfully started.");
-        
-        while (true) {
-            let task = null;
+    let reconnectionAttempt = 0;
+    const MAX_RECONNECTIONS = 5;
+
+    while (true) {
+        if (!driver) {
+            console.log("Attempting to start/reconnect Appium session...");
             try {
-                if (queue.length > 0) {
-                    task = queue.shift();
-                    const { telegramId, amount, account_number, withdrawalRecordId } = task;
-                    console.log(`🚀 Starting Telebirr withdrawal task for user ${telegramId}`);
+                driver = await wdio.remote(opts);
+                console.log("✅ Appium session successfully started.");
+                reconnectionAttempt = 0;
+            } catch (error) {
+                console.error(`🚨 Failed to start Appium session (Attempt ${reconnectionAttempt + 1}):`, error.message);
+                reconnectionAttempt++;
+                if (reconnectionAttempt >= MAX_RECONNECTIONS) {
+                    console.error("💀 Maximum reconnection attempts reached. Shutting down worker.");
+                    break;
+                }
+                const retryDelay = Math.pow(2, reconnectionAttempt) * 1000;
+                console.log(`Retrying in ${retryDelay / 1000} seconds...`);
+                await new Promise(resolve => setTimeout(resolve, retryDelay));
+                continue;
+            }
+        }
+
+        if (queue.length > 0) {
+            let task = queue.shift();
+            try {
+                console.log(`🚀 Starting Telebirr withdrawal task for user ${task.telegramId}`);
+                
+                if (driver && driver.is) {
+                    const result = await processTelebirrWithdrawal({ driver, ...task });
                     
-                    const result = await processTelebirrWithdrawal({ driver, amount, account_number });
-                    
-                    const isSuccess = result?.status === "success" || result?.message?.toLowerCase().includes("completed");
-                    const withdrawalRecord = await Withdrawal.findById(withdrawalRecordId);
+                    const isSuccess = result?.status === "completed";
+                    const withdrawalRecord = await Withdrawal.findById(task.withdrawalRecordId);
+
                     if (withdrawalRecord) {
-                        withdrawalRecord.status = isSuccess ? "completed" : "failed";
+                        withdrawalRecord.status = isSuccess ? "completed" : "rejected";
                         if (result?.data?.tx_ref) {
                             withdrawalRecord.tx_ref = result.data.tx_ref;
                         }
                         await withdrawalRecord.save();
                     }
+
                     if (!isSuccess) {
                         const userToRefund = await User.findOneAndUpdate(
-                            { telegramId: String(telegramId) },
-                            { $inc: { balance: amount } }
+                            { telegramId: String(task.telegramId) },
+                            { $inc: { balance: task.amount } }
                         );
                         if (userToRefund) {
-                            console.log(`✅ Refunded ${amount} Birr to user ${telegramId} due to failed withdrawal.`);
+                            console.log(`✅ Refunded ${task.amount} Birr to user ${task.telegramId} due to failed withdrawal.`);
                         } else {
-                            console.error(`🚨 CRITICAL: FAILED TO REFUND USER ${telegramId} for amount ${amount} - user not found.`);
+                            console.error(`🚨 CRITICAL: FAILED TO REFUND USER ${task.telegramId} for amount ${task.amount} - user not found.`);
                         }
                     }
-                    try {
-                        await bot.telegram.sendMessage(
-                            Number(telegramId),
-                            isSuccess
-                                ? `✅ የ*${amount} ብር* ገንዘብ ማውጣትዎ በተሳካ ሁኔታ ተካሂዷል!`
-                                : `🚫 የ*${amount} ብር* ገንዘብ ማውጣትዎ አልተሳካም። እባክዎ ቆይተው እንደገና ይሞክሩ።`,
-                            { parse_mode: "Markdown" }
-                        );
-                    } catch (msgErr) {
-                        console.error(`❌ Failed to send final message to ${telegramId}:`, msgErr);
-                    }
-                    await new Promise(resolve => setTimeout(resolve, 2000));
+
+                    await bot.telegram.sendMessage(
+                        Number(task.telegramId),
+                        isSuccess
+                            ? `✅ የ*${task.amount} ብር* ገንዘብ ማውጣትዎ በተሳካ ሁኔታ ተካሂዷል!`
+                            : `🚫 የ*${task.amount} ብር* ገንዘብ ማውጣትዎ አልተሳካም። እባክዎ ቆይተው እንደገና ይሞክሩ።`,
+                        { parse_mode: "Markdown" }
+                    );
                 } else {
-                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    console.error("❌ Driver is not valid. Requeuing task and forcing reconnection.");
+                    queue.unshift(task); 
+                    driver = null; 
                 }
             } catch (loopErr) {
                 console.error("🔥 A critical error occurred in the worker loop:", loopErr);
+                const isSessionError = loopErr.message && (loopErr.message.includes('session') || loopErr.message.includes('WebDriver Error'));
+                if (isSessionError) {
+                     console.log("Detected a dead session. Attempting reconnection...");
+                     driver = null;
+                }
+
                 if (task) {
                     console.error(`💀 Error processing task for user: ${task.telegramId}`);
                     try {
-                        await Withdrawal.findByIdAndUpdate(task.withdrawalRecordId, { status: "failed" });
-                        try {
-                            const userToRefund = await User.findOne({ telegramId: String(task.telegramId) });
-                            if (userToRefund) {
-                                userToRefund.balance += task.amount; 
-                                await userToRefund.save();
-                                console.log(`✅ Refunded ${task.amount} Birr to user ${task.telegramId}`);
-                            }
-                        } catch (refundErr) {
-                            console.error(`🚨 CRITICAL: FAILED TO REFUND USER ${task.telegramId} for amount ${task.amount}`, refundErr);
-                        }
+                        await Withdrawal.findByIdAndUpdate(task.withdrawalRecordId, { status: "rejected" });
+                        await User.findOneAndUpdate(
+                            { telegramId: String(task.telegramId) },
+                            { $inc: { balance: task.amount } }
+                        );
+                        console.log(`✅ Refunded ${task.amount} Birr to user ${task.telegramId}`);
                         await bot.telegram.sendMessage(
                             Number(task.telegramId),
                             `🚫 A system error occurred while processing your withdrawal of *${task.amount} Birr*. Please contact support.`,
@@ -261,15 +270,14 @@ const setupTelebirrWorker = async (bot, queue, opts) => {
                         console.error("🚨 Failed to perform recovery actions:", recoveryErr);
                     }
                 }
-                await new Promise(resolve => setTimeout(resolve, 10000));
             }
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        } else {
+            await new Promise(resolve => setTimeout(resolve, 5000));
         }
-    } catch (error) {
-        console.error("🚨 Failed to start Appium session:", error);
-    } finally {
-        if (driver) {
-            console.log("🚨 Appium session disconnected.");
-        }
+    }
+    if (driver) {
+        console.log("Appium session disconnected.");
     }
 };
 
