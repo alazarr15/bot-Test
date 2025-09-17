@@ -241,25 +241,31 @@ module.exports = function (bot) {
             await ctx.answerCbQuery();
             return ctx.scene.enter("manualDeposit");
         }
-        if (data === "balance") {
-            try {
-                await ctx.answerCbQuery();
-                const user = await User.findOne({ telegramId });
-                if (!user) {
-                    return ctx.reply("🚫 You must register first to check your balance. Please click below to register:", {
-                        reply_markup: {
-                            inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
-                        }
-                    });
-                }
-                return ctx.reply(`💰 ቀሪ ሒሳብዎ: *${user.balance} ብር*`, {
-                    parse_mode: "Markdown"
-                });
-            } catch (error) {
-                console.error("❌ Error in callback balance:", error.message);
-                return ctx.reply("🚫 Failed to fetch your balance. Please try again.");
-            }
-        }
+
+      if (data === "balance") {
+            try {
+                await ctx.answerCbQuery();
+                const user = await User.findOne({ telegramId });
+                if (!user) {
+                    return ctx.reply("🚫 You must register first to check your balance. Please click below to register:", {
+                        reply_markup: {
+                            inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
+                        }
+                    });
+                }
+                // ⭐ Updated: Display both the regular balance and the bonus balance
+                return ctx.reply(`💰 **የሒሳብዎ ዝርዝር:**
+- **ለመውጣት የሚችል ቀሪ ሒሳብ:** *${user.balance} ብር*
+- **የጉርሻ ቀሪ ሒሳብ:** *${user.bonus_balance || 0} ብር*`, {
+                    parse_mode: "Markdown"
+                });
+            } catch (error) {
+                console.error("❌ Error in callback balance:", error.message);
+                return ctx.reply("🚫 Failed to fetch your balance. Please try again.");
+            }
+        }
+
+
         if (data === "invite") {
             await ctx.answerCbQuery();
             const inviteLink = `https://t.me/Danbingobot?start=${telegramId}`;

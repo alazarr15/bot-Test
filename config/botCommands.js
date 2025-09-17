@@ -8,7 +8,9 @@ const botCommands = [
   { command: "invite", description: "Invite friends" },
   { command: "transfer_funds", description: "Transfer funds" },
   { command: "change_username", description: "Change your username" },
-  { command: "transfer_history", description: "see my last 10 transfers" }
+  { command: "transfer_history", description: "see my last 10 transfers" },
+  { command: "resetme", description: "reset my account" }
+
 ];
 
 module.exports = { botCommands };
