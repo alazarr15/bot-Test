@@ -4,7 +4,7 @@ const Withdrawal = require("../Model/withdrawal");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 
 // ✅ IMPORTANT: Correct import to get the setup function.
-const { setupTelebirrWorker } = require('./telebirrWorker_final.js'); 
+const { setupTelebirrWorker } = require('./telebirrWorker.js'); 
 
 // ⚠️ CRITICAL: Use environment variables for sensitive info
 const TELEBIRR_LOGIN_PIN = process.env.TELEBIRR_LOGIN_PIN;
