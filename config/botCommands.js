@@ -9,9 +9,6 @@ const botCommands = [
   { command: "transfer_funds", description: "Transfer funds" },
   { command: "change_username", description: "Change your username" },
   { command: "transfer_history", description: "see my last 10 transfers" }
-
-
-
 ];
 
 module.exports = { botCommands };

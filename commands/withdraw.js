@@ -2,10 +2,10 @@
 // This file handles the initial /withdraw command.
 
 const User = require("../Model/user");
-const { userWithdrawalStates } = require("../handlers/state/withdrawalState");
+// ❌ REMOVED: const { userWithdrawalStates } = require("../handlers/state/withdrawalState");
 
 const withdrawalBanks = [
-  //  { name: "🏛 CBE", code: "946" },
+    // { name: "🏛 CBE", code: "946" },
     { name: "📱 Telebirr", code: "855" }
 ];
 
@@ -22,17 +22,20 @@ module.exports = function (bot) {
                 return ctx.reply("🚫 You must be registered to withdraw.");
             }
 
-            // Check user's balance
             if (user.balance <= 0) {
                 return ctx.reply("🚫 You do not have a positive balance to withdraw.");
             }
 
-            // 💾 Initialize state for this user in our in-memory map
-            userWithdrawalStates.set(telegramId, {
-                step: "selectBank",
-                userBalance: user.balance,
-                data: {}, // To store bank_code, amount, account_number
-            });
+            // ✅ UPDATED: Initialize the withdrawal state directly in the database
+            await User.findOneAndUpdate(
+                { telegramId },
+                {
+                    withdrawalInProgress: {
+                        step: "selectBank",
+                        data: {},
+                    }
+                }
+            );
 
             // Offer bank choices
             const keyboard = withdrawalBanks.map((bank) => [{
