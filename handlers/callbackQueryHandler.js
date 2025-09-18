@@ -206,67 +206,129 @@ module.exports = function (bot) {
         }
 
        // ... inside your bot.on('callback_query', async (ctx) => { ...
+  // Handle /register callback
 
-if (data === "register") {
-    try {
-        await ctx.answerCbQuery();
-        const telegramId = ctx.from.id;
+        if (data === "register") {
 
-        const user = await User.findOne({ telegramId });
+            await ctx.answerCbQuery();
 
-        if (user) {
-            return ctx.reply(`ℹ️ You are already registered as *${user.username}*`, {
-                parse_mode: "Markdown"
-            });
-        }
 
-        await User.findOneAndUpdate({ telegramId }, {
-            registrationInProgress: { step: 1 }
-        }, { upsert: true });
 
-        return ctx.reply("📲 Please share your contact by clicking the button below.", {
-            reply_markup: {
-                keyboard: [[{ text: "📞 Share Contact", request_contact: true }]],
-                one_time_keyboard: true,
-                resize_keyboard: true
-            }
-        });
-    } catch (error) {
-        console.error("❌ Registration callback failed:", error);
-        return ctx.reply("🚫 An error occurred while starting registration.");
-    }
-}
+            const user = await User.findOne({ telegramId });
 
-if (data === "Play") {
-    try {
-        await ctx.answerCbQuery();
-        const telegramId = ctx.from.id;
+            if (user) {
 
-        const user = await User.findOne({ telegramId });
+                return ctx.reply(`ℹ️ You are already registered as *${user.username}*`, {
 
-        if (!user) {
-            return ctx.reply("🚫 You must register first. Please click below to register:", {
-                reply_markup: {
-                    inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
-                }
-            });
-        }
+                    parse_mode: "Markdown"
 
-        return ctx.reply("🎮 Choose your game:", {
-            reply_markup: {
-                inline_keyboard: [
-                    [{ text: "10 Birr", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=10` } }],
-                    [{ text: "20 Birr", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=20` } }],
-                    [{ text: "30 Birr", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=30` } }],
-                    [{ text: "40 Birr", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=40` } }]
-                ]
-            }
-        });
-    } catch (error) {
-        console.error("❌ Error in Play callback:", error.message);
-        return ctx.reply("🚫 Failed to show game options. Please try again later.");
-    }
-}
+                });
+
+            }
+
+
+
+            registrationInProgress[telegramId] = { step: 1 };
+
+
+
+            // Send instruction message with the contact share keyboard
+
+            return ctx.reply(
+
+                "📲 To continue, tap 📞 Share Contact.\n\n❓ Don’t see the button? Tap the ▦ icon (with 4 dots) next to your message box.",
+
+                {
+
+                    reply_markup: {
+
+                        keyboard: [
+
+                            [
+
+                                {
+
+                                    text: "📞 Share Contact",
+
+                                    request_contact: true
+
+                                }
+
+                            ]
+
+                        ],
+
+                        one_time_keyboard: true,
+
+                        resize_keyboard: true
+
+                    }
+
+                }
+
+            );
+
+        }
+
+
+
+        // Handle play callback
+
+        if (data === "Play") {
+
+            try {
+
+                await ctx.answerCbQuery();
+
+                const user = await User.findOne({ telegramId });
+
+
+
+                if (!user) {
+
+                    return ctx.reply("🚫 You must register first. Please click below to register:", {
+
+                        reply_markup: {
+
+                            inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
+
+                        }
+
+                    });
+
+                }
+
+
+
+                return ctx.reply("🎮 Choose your game:", {
+
+                    reply_markup: {
+
+                        inline_keyboard: [
+
+                            [{ text: "10 Birr", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=10` } }],
+
+                            [{ text: "20 Birr", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=20` } }],
+
+                            [{ text: "30 Birr", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=30` } }],
+
+                            [{ text: "40 Birr", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=40` } }]
+
+                        ]
+
+                    }
+
+                });
+
+            } catch (err) {
+
+                console.error("❌ Error in play callback:", err.message);
+
+                return ctx.reply("🚫 Something went wrong. Please try again later.");
+
+            }
+
+        }
 
         if (data === "deposit" || /^deposit_\d+$/.test(data)) {
             try {
