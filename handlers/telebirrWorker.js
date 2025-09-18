@@ -42,6 +42,20 @@ async function processTelebirrWithdrawal({ driver, account_number, amount, pin }
         const amountInput = await driver.$(SELECTORS.AMOUNT_INPUT);
         await amountInput.setValue(amount);
 
+         // Tap OK using coordinates
+        console.log("🔹 Tapping OK button...");
+        await driver.performActions([{
+            type: 'pointer',
+            id: 'finger1',
+            parameters: { pointerType: 'touch' },
+            actions: [
+                { type: 'pointerMove', duration: 0, x: 942, y: 2050 },
+                { type: 'pointerDown', button: 0 },
+                { type: 'pointerUp', button: 0 }
+            ]
+        }]);
+        await driver.releaseActions();
+
         // 7. Confirm the payment.
         console.log("✅ Confirming payment...");
         const confirmPayBtn = await driver.$(SELECTORS.CONFIRM_PAY_BTN);
