@@ -235,7 +235,7 @@ const stage = new Scenes.Stage([manualDepositScene]);
 
 // Export a function that attaches the session and stage middleware to the bot.
 module.exports = function (bot) {
-  // Use session and stage middleware for all incoming updat
+  // Use session and stage middleware for all incoming update
   bot.use(session());
   bot.use(stage.middleware());
 };
