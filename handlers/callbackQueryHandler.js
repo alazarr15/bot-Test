@@ -111,7 +111,7 @@ module.exports = function (bot) {
         const telegramId = ctx.from.id;
         const data = ctx.callbackQuery?.data;
 
-        // ✅ Apply rate limiting before processing ANY callback
+        // ✅ Apply rate limiting before processing ANY callbacks
         try {
             await Promise.all([
                 userRateLimiter.consume(telegramId),
