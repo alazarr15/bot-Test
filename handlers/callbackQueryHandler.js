@@ -16,17 +16,29 @@ const processQueue = (bot) => {
                     task = telebirrWithdrawalQueue.shift();
                     const { telegramId, amount, account_number, withdrawalRecordId } = task;
                     console.log(`🚀 Starting Telebirr withdrawal task for user ${telegramId}`);
+                    
+                    const withdrawalRecord = await Withdrawal.findById(withdrawalRecordId);
+                    if (!withdrawalRecord || withdrawalRecord.status !== 'pending') {
+                        console.log(`⚠️ Task for user ${telegramId} already processed or invalid.`);
+                        await new Promise(resolve => setTimeout(resolve, 2000));
+                        continue;
+                    }
+
+                    // Perform the actual withdrawal
                     const result = await processTelebirrWithdrawal({ amount, account_number });
                     const isSuccess = result?.status === "success" || result?.message?.toLowerCase().includes("completed");
-                    const withdrawalRecord = await Withdrawal.findById(withdrawalRecordId);
-                    if (withdrawalRecord) {
-                        withdrawalRecord.status = isSuccess ? "completed" : "failed";
+
+                    if (isSuccess) {
+                        withdrawalRecord.status = "completed";
                         if (result?.data?.tx_ref) {
                             withdrawalRecord.tx_ref = result.data.tx_ref;
                         }
                         await withdrawalRecord.save();
-                    }
-                    if (!isSuccess) {
+                        console.log(`✅ Withdrawal for user ${telegramId} completed successfully.`);
+                    } else {
+                        withdrawalRecord.status = "failed";
+                        await withdrawalRecord.save();
+                        
                         // 🚨 CRITICAL: REFUND USER ON FAILURE
                         const userToRefund = await User.findOneAndUpdate(
                             { telegramId: String(telegramId) },
@@ -61,13 +73,16 @@ const processQueue = (bot) => {
                     try {
                         await Withdrawal.findByIdAndUpdate(task.withdrawalRecordId, { status: "failed" });
                         
-                        // ✅ IMPORTANT: THIS IS THE REFUND LOGIC FROM THE FIRST FILE
+                        // ✅ IMPORTANT: REVERT THE BALANCE ON ERROR
                         try {
-                            const userToRefund = await User.findOne({ telegramId: String(task.telegramId) });
+                            const userToRefund = await User.findOneAndUpdate(
+                                { telegramId: String(task.telegramId) },
+                                { $inc: { balance: task.amount } }
+                            );
                             if (userToRefund) {
-                                userToRefund.balance += task.amount; // Add the money back
-                                await userToRefund.save();
                                 console.log(`✅ Refunded ${task.amount} Birr to user ${task.telegramId}`);
+                            } else {
+                                console.error(`🚨 CRITICAL: FAILED TO REFUND USER ${task.telegramId} for amount ${task.amount} - user not found on fallback.`);
                             }
                         } catch (refundErr) {
                             console.error(`🚨 CRITICAL: FAILED TO REFUND USER ${task.telegramId} for amount ${task.amount}`, refundErr);
@@ -88,7 +103,6 @@ const processQueue = (bot) => {
     };
     runWorker();
 };
-
 module.exports = function (bot) {
     processQueue(bot);
 
