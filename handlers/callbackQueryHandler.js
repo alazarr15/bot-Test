@@ -219,74 +219,11 @@ module.exports = function (bot) {
             return;
         }
 
-       // ... inside your bot.on('callback_query', async (ctx) => { ...
-  // Handle /register callback
-
-        if (data === "register") {
-
-            await ctx.answerCbQuery();
+     
 
 
 
-            const user = await User.findOne({ telegramId });
 
-            if (user) {
-
-                return ctx.reply(`ℹ️ You are already registered as *${user.username}*`, {
-
-                    parse_mode: "Markdown"
-
-                });
-
-            }
-
-
-
-            registrationInProgress[telegramId] = { step: 1 };
-
-
-
-            // Send instruction message with the contact share keyboard
-
-            return ctx.reply(
-
-                "📲 To continue, tap 📞 Share Contact.\n\n❓ Don’t see the button? Tap the ▦ icon (with 4 dots) next to your message box.",
-
-                {
-
-                    reply_markup: {
-
-                        keyboard: [
-
-                            [
-
-                                {
-
-                                    text: "📞 Share Contact",
-
-                                    request_contact: true
-
-                                }
-
-                            ]
-
-                        ],
-
-                        one_time_keyboard: true,
-
-                        resize_keyboard: true
-
-                    }
-
-                }
-
-            );
-
-        }
-
-
-
-        // Handle play callback
 
         if (data === "Play") {
 
