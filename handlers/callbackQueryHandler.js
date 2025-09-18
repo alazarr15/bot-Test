@@ -7,7 +7,7 @@ const { registrationInProgress } = require("./state/registrationState");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 const { userWithdrawalStates } = require("./state/withdrawalState");
 const { processTelebirrWithdrawal } = require('./telebirrWorker.js');
-const { getDriver, resetDriver } = require('../services/appiumService'); // 👈 Using the new service
+const { getDriver, resetDriver } = require('./appiumService.js'); // 👈 Using the new service
 
 const telebirrWithdrawalQueue = [];
 
