@@ -1,7 +1,7 @@
 // This worker script provides the core function for processing Telebirr withdrawals.
 // It is designed to be called by a separate handler, which manages the queue and driver state.
 
-const { navigateToHome, enterPin, SELECTORS } = require("./appiumService.js");
+const { navigateToHome, enterPin, SELECTORS, TELEBIRR_LOGIN_PIN } = require("./appiumService.js");
 
 /**
  * Executes the complete "send money" workflow on the Telebirr app.
