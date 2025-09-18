@@ -6,110 +6,97 @@ const Withdrawal = require("../Model/withdrawal");
 const { registrationInProgress } = require("./state/registrationState");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 const { userWithdrawalStates } = require("./state/withdrawalState");
-const { processTelebirrWithdrawal } = require('./telebirrWorker.js'); // ⚠️ UPDATED import to match the Canvas file.
+const { processTelebirrWithdrawal } = require('./telebirrWorker.js');
+const { getDriver, resetDriver } = require('../services/appiumService'); // 👈 Using the new service
 
-
-// This array will act as a simple in-memory queue.
-// In a production environment, you would use a dedicated message queue service like
-// RabbitMQ, Redis Bull, or a cloud-based service like AWS SQS.
 const telebirrWithdrawalQueue = [];
 
-// ⚠️ IMPROVEMENT: Replaced setInterval with a recursive function call.
-// This ensures that the next task is only processed AFTER the previous one has
-// completed, preventing concurrency issues with the single automation device.
 const processQueue = (bot) => {
-  const runWorker = async () => {
-    console.log("🔄 Starting Telebirr withdrawal queue processor...");
+    // The driver state is now managed within the appiumService.
 
-    while (true) {
-      let task = null; // Keep task in outer scope for error handling
+    const runWorker = async () => {
+        console.log("🔄 Starting Telebirr withdrawal queue processor...");
 
-      try {
-        if (telebirrWithdrawalQueue.length > 0) {
-          task = telebirrWithdrawalQueue.shift();
-          const { telegramId, amount, account_number, withdrawalRecordId } = task;
+        while (true) {
+            let task = null;
 
-          console.log(`🚀 Starting Telebirr withdrawal task for user ${telegramId}`);
+            try {
+                // ✅ Simplified driver management. The service handles creation/reconnection.
+                const driver = await getDriver();
 
-          const result = await processTelebirrWithdrawal({ amount, account_number });
-          console.log("🔍 Telebirr API result:", JSON.stringify(result, null, 2));
+                if (telebirrWithdrawalQueue.length > 0) {
+                    task = telebirrWithdrawalQueue.shift();
+                    const { telegramId, amount, account_number, withdrawalRecordId } = task;
 
-          const isSuccess =
-            result?.status === "success" ||
-            result?.message?.toLowerCase().includes("completed");
+                    console.log(`🚀 Starting Telebirr withdrawal task for user ${telegramId}`);
 
-          const withdrawalRecord = await Withdrawal.findById(withdrawalRecordId);
-          if (withdrawalRecord) {
-            // ✅ Update withdrawal status
-            withdrawalRecord.status = isSuccess ? "completed" : "failed";
-            if (result?.data?.tx_ref) {
-              withdrawalRecord.tx_ref = result.data.tx_ref;
+                    const result = await processTelebirrWithdrawal({ driver, amount, account_number });
+                    console.log("🔍 Telebirr worker result:", JSON.stringify(result, null, 2));
+
+                    const isSuccess = result?.status === "success" || result?.message?.toLowerCase().includes("completed");
+
+                    const withdrawalRecord = await Withdrawal.findById(withdrawalRecordId);
+                    if (withdrawalRecord) {
+                        withdrawalRecord.status = isSuccess ? "completed" : "failed";
+                        if (result?.data?.tx_ref) {
+                            withdrawalRecord.tx_ref = result.data.tx_ref;
+                        }
+                        await withdrawalRecord.save();
+
+                        if (isSuccess) {
+                            const user = await User.findOne({ telegramId });
+                            if (user) {
+                                user.balance -= withdrawalRecord.amount;
+                                if (user.balance < 0) user.balance = 0;
+                                await user.save();
+                            }
+                        }
+                    }
+
+                    try {
+                        await bot.telegram.sendMessage(
+                            Number(telegramId),
+                            isSuccess
+                                ? `✅ የ*${amount} ብር* ገንዘብ ማውጣትዎ በተሳካ ሁኔታ ተካሂዷൽ!`
+                                : `🚫 የ*${amount} ብር* ገንዘብ ማውጣትዎ አልተሳካም። እባክዎ ቆይተው እንደገና ይሞክሩ።`,
+                            { parse_mode: "Markdown" }
+                        );
+                    } catch (msgErr) {
+                        console.error(`❌ Failed to send final message to ${telegramId}:`, msgErr);
+                    }
+
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                } else {
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                }
+            } catch (loopErr) {
+                console.error("🔥 A critical error occurred in the worker loop:", loopErr);
+                resetDriver(); // ✅ Tell the service to invalidate the driver
+
+                if (task) {
+                    console.error(`💀 Error processing task for user: ${task.telegramId}`);
+                    try {
+                        await Withdrawal.findByIdAndUpdate(task.withdrawalRecordId, { status: "failed" });
+
+                        await bot.telegram.sendMessage(
+                            Number(task.telegramId),
+                            `🚫 A system error occurred while processing your withdrawal of *${task.amount} Birr*. Please contact support.`,
+                            { parse_mode: "Markdown" }
+                        );
+                    } catch (recoveryErr) {
+                        console.error("🚨 Failed to perform recovery actions:", recoveryErr);
+                    }
+                }
+                await new Promise(resolve => setTimeout(resolve, 10000));
             }
-            await withdrawalRecord.save();
-
-            // ⭐ Deduct user balance only if withdrawal succeeded
-            if (isSuccess) {
-              const user = await User.findOne({ telegramId });
-              if (user) {
-                user.balance -= withdrawalRecord.amount;
-                if (user.balance < 0) user.balance = 0; // Safety check
-                await user.save();
-              }
-            }
-          }
-
-          // Send final confirmation message to the user
-          try {
-            
-            await bot.telegram.sendMessage(
-              Number(telegramId),
-              isSuccess
-                ? `✅ የ*${amount} ብር* ገንዘብ ማውጣትዎ በተሳካ ሁኔታ ተካሂዷል!`
-                : `🚫 የ*${amount} ብር* ገንዘብ ማውጣትዎ አልተሳካም። እባክዎ ቆይተው እንደገና ይሞክሩ።`,
-              { parse_mode: "Markdown" }
-            );
-          } catch (msgErr) {
-            console.error(`❌ Failed to send final message to ${telegramId}:`, msgErr);
-          }
-
-          // Small delay between tasks
-          await new Promise(resolve => setTimeout(resolve, 2000));
-        } else {
-          // Queue empty → wait a bit
-          await new Promise(resolve => setTimeout(resolve, 5000));
         }
-      } catch (loopErr) {
-        console.error("🔥 A critical error occurred in the worker loop:", loopErr);
+    };
 
-        if (task) {
-          console.error(`💀 Error processing task for user: ${task.telegramId}`);
-          try {
-            // Mark the withdrawal as failed
-            await Withdrawal.findByIdAndUpdate(task.withdrawalRecordId, { status: "failed" });
-
-            // Notify user about system error
-            await bot.telegram.sendMessage(
-              Number(task.telegramId),
-              `🚫 A system error occurred while processing your withdrawal of *${task.amount} Birr*. Please contact support.`,
-              { parse_mode: "Markdown" }
-            );
-          } catch (recoveryErr) {
-            console.error("🚨 Failed to perform recovery actions:", recoveryErr);
-          }
-        }
-
-        // Wait before next loop iteration
-        await new Promise(resolve => setTimeout(resolve, 10000));
-      }
-    }
-  };
-
-  runWorker();
+    runWorker();
 };
 
 
 module.exports = function (bot) {
-    // Start the queue processing loop when the bot starts
     processQueue(bot);
 
     bot.on("callback_query", async (ctx) => {
@@ -134,7 +121,7 @@ module.exports = function (bot) {
                 return ctx.answerCbQuery("🚫 This conversation has expired. Please start over with /withdraw.");
             }
 
-            ctx.answerCbQuery(); // Dismiss the loading indicator on the button
+            ctx.answerCbQuery();
 
             if (userState.step === "selectBank") {
                 const bankCode = data.split("_")[1];
@@ -147,14 +134,12 @@ module.exports = function (bot) {
                     parse_mode: 'Markdown'
                 });
             }
-
-            // Handle final confirmation/cancellation
             else if (userState.step === "confirm") {
                 if (data === "withdraw_confirm") {
                     const { amount, bank_code, account_number } = userState.data;
 
                     try {
-                        await ctx.editMessageText("⏳ ገንዘብ ማውጣት ሂደትዎ ተጀምሯል። በተጠናቀቀ ጊዜ እናሳዉቃለን [1-3] ደቂቃ ለመውጣት /cancel ይጻፉ።");
+                        await ctx.editMessageText("⏳ Your withdrawal is in the queue. We will notify you upon completion. To cancel, type /cancel.");
 
                         const withdrawal = new Withdrawal({
                             tx_ref: `TX-${Date.now()}-${telegramId}`,
@@ -162,24 +147,20 @@ module.exports = function (bot) {
                             amount,
                             bank_code,
                             account_number,
-                            status: 'pending' // Initial status
+                            status: 'pending'
                         });
 
-                        // Save the withdrawal to the database immediately
                         const savedWithdrawal = await withdrawal.save();
                         userWithdrawalStates.delete(telegramId);
 
-                        // If it's a Telebirr withdrawal, add it to the queue instead of processing it here
                         if (bank_code === "855") {
                             telebirrWithdrawalQueue.push({
                                 telegramId,
                                 amount,
                                 account_number,
-                                withdrawalRecordId: savedWithdrawal._id // Pass the DB record ID
+                                withdrawalRecordId: savedWithdrawal._id
                             });
-                        } else {
-                            // For other banks, you can handle them as a direct process or via a different worker
-                            // For now, we'll assume they also get a pending status and an admin handles them.
+                            console.log(`📥 Added withdrawal for ${telegramId} to the queue. Queue size: ${telebirrWithdrawalQueue.length}`);
                         }
 
                     } catch (error) {
@@ -191,12 +172,12 @@ module.exports = function (bot) {
                     userWithdrawalStates.delete(telegramId);
                     await ctx.editMessageText("❌ Withdrawal request has been cancelled.", {
                         reply_markup: {
-                            inline_keyboard: [] // Remove the keyboard
+                            inline_keyboard: []
                         }
                     });
                 }
             }
-            return; // Exit after handling a withdrawal callback
+            return;
         }
 
 
@@ -213,7 +194,6 @@ module.exports = function (bot) {
 
             registrationInProgress[telegramId] = { step: 1 };
 
-            // Send instruction message with the contact share keyboard
             return ctx.reply(
                 "📲 To continue, tap 📞 Share Contact.\n\n❓ Don’t see the button? Tap the ▦ icon (with 4 dots) next to your message box.",
                 {
@@ -263,23 +243,19 @@ module.exports = function (bot) {
             }
         }
 
-        // ⭐ Handle 'deposit' callback - INLINED LOGIC
+        // Handle 'deposit' callback
         if (data === "deposit" || /^deposit_\d+$/.test(data)) {
             try {
                 await ctx.answerCbQuery();
-
                 const user = await User.findOne({ telegramId });
                 if (!user) {
-                    return ctx.reply("🚫 You must register first to make a deposit. Please click below to register:", {
+                    return ctx.reply("🚫 You must register first to make a deposit.", {
                         reply_markup: {
                             inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
                         }
                     });
                 }
 
-                const depositUrl = `https://frontend.bingoogame.com/PaymentForm?user=${telegramId}`;
-
-                // Return the deposit options directly
                 return ctx.reply("💰 የገንዘብ ማስገቢያ ዘዴ ይምረጡ:", {
                     reply_markup: {
                         inline_keyboard: [
@@ -289,16 +265,15 @@ module.exports = function (bot) {
                 });
 
             } catch (err) {
-                // The rate limit for this specific `deposit` callback is covered by the top-level catch.
                 console.error("❌ Error in deposit callback handler:", err.message);
                 return ctx.reply("🚫 An error occurred. Please try again.");
             }
         }
 
-        // ⭐ Handle 'manual_deposit' callback to enter the scene
+        // Handle 'manual_deposit' callback
         if (data === "manual_deposit") {
-            await ctx.answerCbQuery(); // Acknowledge the button press
-            return ctx.scene.enter("manualDeposit"); // Enter the manual deposit scene
+            await ctx.answerCbQuery();
+            return ctx.scene.enter("manualDeposit");
         }
 
         // Handle balance callback
@@ -308,7 +283,7 @@ module.exports = function (bot) {
                 const user = await User.findOne({ telegramId });
 
                 if (!user) {
-                    return ctx.reply("🚫 You must register first to check your balance. Please click below to register:", {
+                    return ctx.reply("🚫 You must register first to check your balance.", {
                         reply_markup: {
                             inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
                         }
@@ -327,9 +302,7 @@ module.exports = function (bot) {
         // Handle invite callback
         if (data === "invite") {
             await ctx.answerCbQuery();
-
             const inviteLink = `https://t.me/Danbingobot?start=${telegramId}`;
-
             const message = `
 🎉 *Invite & Earn!*
 
@@ -348,14 +321,12 @@ Share Boss Bingo with your friends and earn rewards when they join using your li
             });
         }
 
-        // ❗ Fallback for unhandled callbacks (only if not explicitly handled by a 'return' statement above)
-        // This should now only catch genuinely unhandled callbacks, not 'deposit' or 'manual_deposit'.
         console.warn(`⚠️ Unhandled callback data: ${data}`);
-        return; // Ensure this function always returns something if a callback is processed.
+        return;
     });
 
-    // ✅ Properly registered outside of callback_query handler
     bot.action("copied", async (ctx) => {
         await ctx.answerCbQuery("✅ Link copied!", { show_alert: false });
     });
 };
+
