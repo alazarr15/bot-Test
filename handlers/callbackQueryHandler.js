@@ -373,8 +373,7 @@ module.exports = function (bot) {
             await ctx.answerCbQuery();
             return ctx.scene.enter("manualDeposit");
         }
-
-      if (data === "balance") {
+if (data === "balance") {
             try {
                 await ctx.answerCbQuery();
                 const user = await User.findOne({ telegramId });
