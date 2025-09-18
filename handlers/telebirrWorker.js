@@ -12,7 +12,7 @@ const { navigateToHome, enterPin, SELECTORS, TELEBIRR_LOGIN_PIN } = require("./a
  * @param {string} options.pin The transaction PIN.
  * @returns {Promise<object>} A promise that resolves to a result object.
  */
-async function processTelebirrWithdrawal({ driver, account_number, amount, pin }) {
+async function processTelebirrWithdrawal({ driver, account_number, amount}) {
     try {
         console.log("🚀 Starting the Telebirr withdrawal task...");
 

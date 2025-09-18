@@ -44,13 +44,18 @@ const processQueue = (bot) => {
                         await withdrawalRecord.save();
 
                         if (isSuccess) {
-                            const user = await User.findOne({ telegramId });
-                            if (user) {
-                                user.balance -= withdrawalRecord.amount;
-                                if (user.balance < 0) user.balance = 0;
-                                await user.save();
-                            }
-                        }
+                        withdrawalRecord.status = "completed";
+                        // ... (update tx_ref if available)
+                        await withdrawalRecord.save();
+                        } else {
+                        // ↩️ REFUND STEP (Graceful Failure): The worker failed, so refund the user.
+                        withdrawalRecord.status = "failed";
+                        await withdrawalRecord.save();
+                        
+                        console.log(`Refunding ${amount} to user ${telegramId} due to failed withdrawal.`);
+                        // Atomically add the amount back to the user's balance
+                        await User.findOneAndUpdate({ telegramId }, { $inc: { balance: amount } });
+                    }
                     }
 
                     try {
@@ -77,6 +82,9 @@ const processQueue = (bot) => {
                     console.error(`💀 Error processing task for user: ${task.telegramId}`);
                     try {
                         await Withdrawal.findByIdAndUpdate(task.withdrawalRecordId, { status: "failed" });
+
+                        console.log(`Refunding ${task.amount} to user ${task.telegramId} due to critical error.`);
+                        await User.findOneAndUpdate({ telegramId: task.telegramId }, { $inc: { balance: task.amount } });
 
                         await bot.telegram.sendMessage(
                             Number(task.telegramId),
@@ -135,39 +143,58 @@ module.exports = function (bot) {
                 });
             }
             else if (userState.step === "confirm") {
-                if (data === "withdraw_confirm") {
-                    const { amount, bank_code, account_number } = userState.data;
+    if (data === "withdraw_confirm") {
+        const { amount, bank_code, account_number } = userState.data;
 
-                    try {
-                        await ctx.editMessageText("⏳ Your withdrawal is in the queue. We will notify you upon completion. To cancel, type /cancel.");
+        // 🏦 STEP 1: Find the user and check their balance
+        const user = await User.findOne({ telegramId });
 
-                        const withdrawal = new Withdrawal({
-                            tx_ref: `TX-${Date.now()}-${telegramId}`,
-                            telegramId: String(telegramId),
-                            amount,
-                            bank_code,
-                            account_number,
-                            status: 'pending'
-                        });
+        if (!user || user.balance < amount) {
+            userWithdrawalStates.delete(telegramId); // Clean up state
+            return ctx.editMessageText("🚫 Insufficient balance. Your withdrawal request has been cancelled.");
+        }
+        
+        // 🏦 STEP 2: Hold the funds by deducting them BEFORE queueing
+        user.balance -= amount;
 
-                        const savedWithdrawal = await withdrawal.save();
-                        userWithdrawalStates.delete(telegramId);
+            try {
+                // This entire block must succeed. If it fails, we'll refund in the catch block.
+                await user.save(); // Save the new lower balance
 
-                        if (bank_code === "855") {
-                            telebirrWithdrawalQueue.push({
-                                telegramId,
-                                amount,
-                                account_number,
-                                withdrawalRecordId: savedWithdrawal._id
-                            });
-                            console.log(`📥 Added withdrawal for ${telegramId} to the queue. Queue size: ${telebirrWithdrawalQueue.length}`);
-                        }
+                await ctx.editMessageText("⏳ Your withdrawal is in the queue. We will notify you upon completion.");
 
-                    } catch (error) {
-                        console.error("❌ Error submitting withdrawal request:", error);
-                        userWithdrawalStates.delete(telegramId);
-                        return await ctx.reply("🚫 An error occurred while submitting your request. Please try again.");
-                    }
+                const withdrawal = new Withdrawal({
+                    tx_ref: `TX-${Date.now()}-${telegramId}`,
+                    telegramId: String(telegramId),
+                    amount,
+                    bank_code,
+                    account_number,
+                    status: 'pending'
+                });
+
+            const savedWithdrawal = await withdrawal.save();
+            userWithdrawalStates.delete(telegramId);
+
+                if (bank_code === "855") {
+                    telebirrWithdrawalQueue.push({
+                        telegramId,
+                        amount,
+                        account_number,
+                        withdrawalRecordId: savedWithdrawal._id
+                    });
+                    console.log(`📥 Added withdrawal for ${telegramId} to queue. Balance held. Queue size: ${telebirrWithdrawalQueue.length}`);
+                 }
+
+                } catch (error) {
+                    console.error("❌ Error submitting withdrawal request, REFUNDING user:", error);
+                    
+                    // ↩️ REFUND STEP: If saving the user/withdrawal or queueing fails, give the money back.
+                    user.balance += amount;
+                    await user.save(); 
+
+                    userWithdrawalStates.delete(telegramId);
+                    return await ctx.reply("🚫 An error occurred while submitting your request. Please try again. Your balance has not been changed.");
+                }
                 } else if (data === "withdraw_cancel") {
                     userWithdrawalStates.delete(telegramId);
                     await ctx.editMessageText("❌ Withdrawal request has been cancelled.", {
