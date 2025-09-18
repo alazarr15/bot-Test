@@ -63,7 +63,6 @@ async function getDriver() {
             if (driver) await driver.deleteSession().catch(e => console.error("Error deleting old session:", e));
             driver = await wdio.remote(opts);
             console.log("✅ Appium session started successfully.");
-            await ensureDeviceIsUnlocked(driver);
         }
         return driver;
     } catch (error) {
@@ -95,47 +94,18 @@ async function ensureDeviceIsUnlocked(driver) {
     console.log("🔐 Checking device lock state...");
     const isLocked = await driver.isLocked();
     if (isLocked) {
-        console.log("📱 Device is locked. Attempting to wake and unlock...");
-        await driver.pressKeyCode(26); // POWER key
-        await driver.pause(1000);
-
-        const { width, height } = await driver.getWindowRect();
-        const startX = width / 2;
-        const startY = height * 0.8;
-        const endY = height * 0.2;
-
-        console.log(`💨 Performing unlock swipe...`);
-        await driver.performActions([{
-            type: 'pointer',
-            id: 'finger1',
-            parameters: { pointerType: 'touch' },
-            actions: [
-                { type: 'pointerMove', duration: 0, x: startX, y: startY },
-                { type: 'pointerDown', button: 0 },
-                { type: 'pointerMove', duration: 500, x: startX, y: endY },
-                { type: 'pointerUp', button: 0 }
-            ]
-        }]);
-        await driver.releaseActions();
-        await driver.pause(2000);
-        console.log("✅ Unlock attempt completed.");
+        console.log("📱 Device is locked. Attempting to unlock...");
+        // Use the native Appium unlock command, which is more reliable than key codes or swipes.
+        await driver.unlock();
+        await driver.pause(2000); // Wait for the unlock animation to finish
+        console.log("✅ Unlock attempt completed. Device should now be unlocked.");
     } else {
         console.log("✅ Device is already unlocked.");
     }
 }
 
-async function enterPin(driver, pin, isTransactionPin = false) {
-    console.log(`🔹 Entering ${isTransactionPin ? 'transaction' : 'login'} PIN...`);
-
-    for (const digit of pin) {
-        const selector = isTransactionPin ? SELECTORS.TRANSACTION_PIN_KEYPAD(digit) : SELECTORS.LOGIN_PIN_KEYPAD[digit];
-        const btn = await driver.$(selector);
-        await btn.click();
-    }
-
-}
-
 async function navigateToHome(driver) {
+    await ensureDeviceIsUnlocked(driver);
     console.log("🧠 Checking app state and navigating to home screen...");
 
     if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 5000)) {
@@ -174,6 +144,7 @@ module.exports = {
     resetDriver,
     navigateToHome,
     enterPin,
+    ensureDeviceIsUnlocked,
     SELECTORS,
     TELEBIRR_LOGIN_PIN
 };
