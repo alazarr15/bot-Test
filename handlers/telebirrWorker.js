@@ -63,7 +63,7 @@ async function processTelebirrWithdrawal({ driver, account_number, amount, pin }
         
         // 8. Enter the transaction PIN to finalize the transfer.
         console.log("🔑 Entering transaction PIN...");
-        await enterPin(driver, pin, true);
+        await enterPin(driver, TELEBIRR_LOGIN_PIN, true);
         
         // 9. Wait for the transaction to finish and the final confirmation button to appear.
         const finishedBtn = await driver.$(SELECTORS.TRANSACTION_FINISHED_BTN);

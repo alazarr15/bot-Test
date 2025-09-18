@@ -126,11 +126,13 @@ async function ensureDeviceIsUnlocked(driver) {
 
 async function enterPin(driver, pin, isTransactionPin = false) {
     console.log(`🔹 Entering ${isTransactionPin ? 'transaction' : 'login'} PIN...`);
-    for (const digit of pin) {
-        const selector = isTransactionPin ? SELECTORS.TRANSACTION_PIN_KEYPAD(digit) : SELECTORS.LOGIN_PIN_KEYPAD[digit];
-        const btn = await driver.$(selector);
-        await btn.click();
-    }
+
+    for (const digit of pin) {
+        const selector = isTransactionPin ? SELECTORS.TRANSACTION_PIN_KEYPAD(digit) : SELECTORS.LOGIN_PIN_KEYPAD[digit];
+        const btn = await driver.$(selector);
+        await btn.click();
+    }
+
 }
 
 async function navigateToHome(driver) {
