@@ -106,29 +106,29 @@ async function ensureDeviceIsUnlocked(driver) {
 
 
 async function enterPin(driver, pin, isTransactionPin = false) {
-    console.log(`🔹 Entering ${isTransactionPin ? 'transaction' : 'login'} PIN...`);
-    for (const digit of pin) {
-        const selector = isTransactionPin ? SELECTORS.TRANSACTION_PIN_KEYPAD(digit) : SELECTORS.LOGIN_PIN_KEYPAD[digit];
-        const btn = await driver.$(selector);
-        await btn.click();
-    }
+
+    console.log(`🔹 Entering ${isTransactionPin ? 'transaction' : 'login'} PIN...`);
+    for (const digit of pin) {
+        const selector = isTransactionPin ? SELECTORS.TRANSACTION_PIN_KEYPAD(digit) : SELECTORS.LOGIN_PIN_KEYPAD[digit];
+        const btn = await driver.$(selector);
+        await btn.click();
+    }
+
 }
 
 async function navigateToHome(driver) {
     await ensureDeviceIsUnlocked(driver);
     console.log("🧠 Checking app state and navigating to home screen...");
 
-    // Check if the app is on the main screen
     if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 5000)) {
         console.log("✅ Already on the home screen.");
         return;
     }
 
-    // If not on the main screen, assume it's not open and activate it.
+     // If not on the main screen, assume it's not open and activate it.
     console.log("🚀 App not on home screen. Attempting to activate...");
     await driver.activateApp(opts.capabilities.alwaysMatch["appium:appPackage"]);
 
-    // Now check for login and proceed
     if (await isDisplayedWithin(driver, SELECTORS.LOGIN_NEXT_BTN, 3000)) {
         console.log("🔹 On login screen. Logging in...");
         await (await driver.$(SELECTORS.LOGIN_NEXT_BTN)).click();
