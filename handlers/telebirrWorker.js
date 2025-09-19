@@ -28,9 +28,8 @@ async function processTelebirrWithdrawal({ driver, accountNumber, amount}) {
         await sendMoneyBtn.click();
         
         // 3. Navigate to the Individual Money Transfer section.
-        const sendMoneyIndividualBtn = await driver.$(SELECTORS.SEND_MONEY_INDIVIDUAL_BTN);
-        await sendMoneyIndividualBtn.waitForClickable({ timeout: 15000 });
-        await sendMoneyIndividualBtn.click();
+         const sendMoneyIndividualBtn = await driver.$(SELECTORS.SEND_MONEY_INDIVIDUAL_BTN);
+         await sendMoneyIndividualBtn.click();
         
         // 4. Enter the recipient's phone number.
         console.log(`👤 Entering recipient phone number: ${accountNumber}`);
@@ -53,21 +52,13 @@ async function processTelebirrWithdrawal({ driver, accountNumber, amount}) {
         console.log("🔹 Tapping OK button...");
 
         await driver.performActions([{
-
             type: 'pointer',
-
             id: 'finger1',
-
             parameters: { pointerType: 'touch' },
-
             actions: [
-
                 { type: 'pointerMove', duration: 0, x: 942, y: 2050 },
-
                 { type: 'pointerDown', button: 0 },
-
                 { type: 'pointerUp', button: 0 }
-
             ]
 
         }]);
