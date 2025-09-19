@@ -24,9 +24,8 @@ async function processTelebirrWithdrawal({ driver, accountNumber, amount}) {
 
         // 2. Navigate to the Send Money section.
         console.log("➡️ Navigating to Send Money...");
-        const sendMoneyBtn = await driver.$(SELECTORS.SEND_MONEY_BTN);
-        await sendMoneyBtn.waitForClickable({ timeout: 15000 });
-        await sendMoneyBtn.click();
+        const sendMoneyBtn = await driver.$(SELECTORS.SEND_MONEY_BTN);
+        await sendMoneyBtn.click();
         
         // 3. Navigate to the Individual Money Transfer section.
         const sendMoneyIndividualBtn = await driver.$(SELECTORS.SEND_MONEY_INDIVIDUAL_BTN);

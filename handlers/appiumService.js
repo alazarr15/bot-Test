@@ -182,42 +182,43 @@ async function enterPin(drv, pin, isTransactionPin = false) {
  * @param {number} [retries=1] - The number of remaining retry attempts.
  */
 async function navigateToHome(drv, retries = 1) {
-    console.log("🧠 Navigating to home screen...");
-    await ensureDeviceIsUnlocked(drv);
-
-    // Re-focus the app to bring it to the foreground.
-    await drv.activateApp(opts.capabilities.alwaysMatch["appium:appPackage"]);
-    await drv.pause(2000); // A brief pause can be helpful after activation.
-
-    // 1. Check if we are already on the main screen.
-    if (await isDisplayedWithin(drv, SELECTORS.MAIN_PAGE_CONTAINER, 5000)) {
-        console.log("✅ Already on home screen.");
-        return;
-    }
-
-    // 2. Handle the login flow if presented.
-    if (await isDisplayedWithin(drv, SELECTORS.LOGIN_NEXT_BTN, 3000)) {
-        console.log("🔹 On login screen. Clicking Next...");
-        await (await drv.$(SELECTORS.LOGIN_NEXT_BTN)).click();
-    }
-
-    if (await isDisplayedWithin(drv, SELECTORS.LOGIN_PIN_KEYPAD["1"], 3000)) {
-        await enterPin(drv, TELEBIRR_LOGIN_PIN, false);
-        await drv.$(SELECTORS.MAIN_PAGE_CONTAINER).waitForDisplayed({ timeout: 45000 });
-        console.log("✅ Login successful. On home screen.");
-        return;
-    }
-
-    // 3. If on an unknown screen, try using the back button as a recovery mechanism.
-    console.log("🔹 On unknown screen. Attempting back navigation...");
-    for (let i = 0; i < 4; i++) {
-        await drv.back();
-        await drv.pause(1000);
-        if (await isDisplayedWithin(drv, SELECTORS.MAIN_PAGE_CONTAINER, 2000)) {
-            console.log("✅ Returned to home screen via back button.");
-            return;
-        }
-    }
+        await ensureDeviceIsUnlocked(drv);
+        console.log("🧠 Navigating to home screen...");
+    
+        // Activate the app (re-focus)
+        await drv.activateApp(opts.capabilities.alwaysMatch["appium:appPackage"]);
+        await drv.pause(2000); // Allow UI to refresh
+    
+        // Check if we are already on main screen
+        if (await isDisplayedWithin(drv, SELECTORS.MAIN_PAGE_CONTAINER, 5000)) {
+            console.log("✅ Already on home screen.");
+            return;
+        }
+    
+        // Login flow if needed
+        if (await isDisplayedWithin(drv, SELECTORS.LOGIN_NEXT_BTN, 3000)) {
+            console.log("🔹 On login screen. Clicking Next...");
+            await (await drv.$(SELECTORS.LOGIN_NEXT_BTN)).click();
+        }
+    
+        if (await isDisplayedWithin(drv, SELECTORS.LOGIN_PIN_KEYPAD["1"], 3000)) {
+            await enterPin(drv, TELEBIRR_LOGIN_PIN, false);
+            //await drv.$(SELECTORS.MAIN_PAGE_CONTAINER).waitForDisplayed({ timeout: 45000 });
+            console.log("✅ Login successful. On home screen.");
+            return;
+        }
+    
+        // Unknown screen: try back navigation
+        console.log("🔹 On unknown screen. Attempting back navigation...");
+        for (let i = 0; i < 4; i++) {
+            await drv.back();
+            await drv.pause(1000);
+            if (await isDisplayedWithin(drv, SELECTORS.MAIN_PAGE_CONTAINER, 2000)) {
+                console.log("✅ Returned to home screen via back button.");
+                return;
+            }
+        }
+    
 
     // 4. As a last resort, reset the driver and retry if attempts are left.
     if (retries > 0) {
