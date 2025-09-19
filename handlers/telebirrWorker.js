@@ -1,5 +1,5 @@
 // workers/telebirrWorker.js
-const { getDriver, navigateToHome, enterPin, SELECTORS, TELEBIRR_LOGIN_PIN, resetDriver } = require("../services/appiumService.js");
+const { getDriver, navigateToHome, enterPin, SELECTORS, TELEBIRR_LOGIN_PIN, resetDriver } = require("./appiumService.js");
 
 /**
  * Executes the complete "send money" workflow on the Telebirr app.
