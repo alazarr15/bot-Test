@@ -30,7 +30,8 @@ const processQueue = (bot) => {
 
                     console.log(`🚀 Starting Telebirr withdrawal task for user ${telegramId}`);
 
-                    const result = await processTelebirrWithdrawal({ driver, amount, account_number });
+                    const result = await processTelebirrWithdrawal({ amount, account_number });
+
                     console.log("🔍 Telebirr worker result:", JSON.stringify(result, null, 2));
 
                     const isSuccess = result?.status === "success" || result?.message?.toLowerCase().includes("completed");
