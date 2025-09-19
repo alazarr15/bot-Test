@@ -61,14 +61,18 @@ async function getDriver() {
         let needsNewSession = false;
 
         if (!driver) {
+            console.log("🔌 No driver found. Creating new Appium session...");
             needsNewSession = true;
-            console.log("🔌 No existing driver. Creating new Appium session...");
         } else {
             try {
-                // Lightweight check to see if UiAutomator2 connection is still alive
-                await driver.status();  
+                // Quick check to see if session is still valid
+                await driver.status();
+                if (!driver.sessionId) {
+                    console.warn("⚠️ Driver exists but no sessionId. Marking for reconnect...");
+                    needsNewSession = true;
+                }
             } catch (err) {
-                console.warn("⚠️ Driver session stale or UiAutomator2 disconnected:", err.message);
+                console.warn("⚠️ Driver session seems stale:", err.message);
                 needsNewSession = true;
             }
         }
@@ -78,27 +82,45 @@ async function getDriver() {
                 try {
                     await driver.deleteSession();
                 } catch (e) {
-                    console.error("Error cleaning up old driver session:", e.message);
+                    console.error("Error cleaning old driver session:", e.message);
                 }
             }
 
             driver = await wdio.remote(opts);
-            console.log("✅ New Appium session started successfully.");
+            console.log(`✅ Started new Appium session (id: ${driver.sessionId}).`);
         }
 
         return driver;
     } catch (error) {
-        console.error("🔥 Failed to create or get Appium driver:", error.message);
-        driver = null; // Reset on failure
+        console.error("🔥 getDriver() failed:", error.message);
+        driver = null;
         throw error;
     }
 }
+
 
 
 function resetDriver() {
     console.warn("🔴 Resetting driver due to a critical error.");
     driver = null;
 }
+
+
+async function safeAction(actionFn) {
+    try {
+        const d = await getDriver();
+        return await actionFn(d);
+    } catch (err) {
+        if (err.message && err.message.includes("invalid session id")) {
+            console.warn("🔄 Session died. Reconnecting...");
+            resetDriver();
+            const d = await getDriver();
+            return await actionFn(d); // retry once
+        }
+        throw err;
+    }
+}
+
 
 
 // --- Helper Functions ---
@@ -113,68 +135,73 @@ async function isDisplayedWithin(driver, selector, timeout = 30000) {
     }
 }
 
-async function ensureDeviceIsUnlocked(driver) {
-    console.log("🔐 Checking device lock state...");
-    const isLocked = await driver.isLocked();
-    if (isLocked) {
-        console.log("📱 Device is locked. Attempting to unlock...");
-        // Use the native Appium unlock command, which is more reliable than key codes or swipes.
-        await driver.unlock();
-        await driver.pause(2000); // Wait for the unlock animation to finish
-        console.log("✅ Unlock attempt completed. Device should now be unlocked.");
-    } else {
-        console.log("✅ Device is already unlocked.");
-    }
+async function ensureDeviceIsUnlocked() {
+    return safeAction(async (driver) => {
+        console.log("🔐 Checking device lock state...");
+        const isLocked = await driver.isLocked();
+        if (isLocked) {
+            console.log("📱 Device is locked. Attempting to unlock...");
+            await driver.unlock();
+            await driver.pause(2000);
+            console.log("✅ Device should now be unlocked.");
+        } else {
+            console.log("✅ Device is already unlocked.");
+        }
+    });
 }
 
 
-async function enterPin(driver, pin, isTransactionPin = false) {
-
-    console.log(`🔹 Entering ${isTransactionPin ? 'transaction' : 'login'} PIN...`);
-    for (const digit of pin) {
-        const selector = isTransactionPin ? SELECTORS.TRANSACTION_PIN_KEYPAD(digit) : SELECTORS.LOGIN_PIN_KEYPAD[digit];
-        const btn = await driver.$(selector);
-        await btn.click();
-    }
-
+async function enterPin(pin, isTransactionPin = false) {
+    return safeAction(async (driver) => {
+        console.log(`🔹 Entering ${isTransactionPin ? 'transaction' : 'login'} PIN...`);
+        for (const digit of pin) {
+            const selector = isTransactionPin 
+                ? SELECTORS.TRANSACTION_PIN_KEYPAD(digit) 
+                : SELECTORS.LOGIN_PIN_KEYPAD[digit];
+            const btn = await driver.$(selector);
+            await btn.click();
+        }
+    });
 }
 
-async function navigateToHome(driver) {
-    await ensureDeviceIsUnlocked(driver);
-    console.log("🧠 Checking app state and navigating to home screen...");
+async function navigateToHome() {
+    return safeAction(async (driver) => {
+        await ensureDeviceIsUnlocked();
 
-    if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 5000)) {
-        console.log("✅ Already on the home screen.");
-        return;
-    }
+        console.log("🧠 Checking app state and navigating to home screen...");
 
-     // If not on the main screen, assume it's not open and activate it.
-    console.log("🚀 App not on home screen. Attempting to activate...");
-    await driver.activateApp(opts.capabilities.alwaysMatch["appium:appPackage"]);
-
-    if (await isDisplayedWithin(driver, SELECTORS.LOGIN_NEXT_BTN, 3000)) {
-        console.log("🔹 On login screen. Logging in...");
-        await (await driver.$(SELECTORS.LOGIN_NEXT_BTN)).click();
-    }
-
-    if (await isDisplayedWithin(driver, SELECTORS.LOGIN_PIN_KEYPAD["1"], 3000)) {
-        await enterPin(driver, TELEBIRR_LOGIN_PIN, false);
-        await driver.$(SELECTORS.MAIN_PAGE_CONTAINER).waitForDisplayed({ timeout: 45000 });
-        console.log("✅ Login successful. On home screen.");
-        return;
-    }
-
-    console.log("🔹 On an unknown screen. Attempting to go back to home...");
-    for (let i = 0; i < 4; i++) {
-        await driver.back();
-        await driver.pause(1000);
-        if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 2000)) {
-            console.log("✅ Successfully returned to home screen via back button.");
+        if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 5000)) {
+            console.log("✅ Already on the home screen.");
             return;
         }
-    }
 
-    throw new Error("FATAL: Could not navigate to the home screen after multiple attempts.");
+        console.log("🚀 App not on home screen. Activating app...");
+        await driver.activateApp(opts.capabilities.alwaysMatch["appium:appPackage"]);
+
+        if (await isDisplayedWithin(driver, SELECTORS.LOGIN_NEXT_BTN, 3000)) {
+            console.log("🔹 On login screen. Logging in...");
+            await (await driver.$(SELECTORS.LOGIN_NEXT_BTN)).click();
+        }
+
+        if (await isDisplayedWithin(driver, SELECTORS.LOGIN_PIN_KEYPAD["1"], 3000)) {
+            await enterPin(TELEBIRR_LOGIN_PIN, false);
+            await driver.$(SELECTORS.MAIN_PAGE_CONTAINER).waitForDisplayed({ timeout: 45000 });
+            console.log("✅ Login successful. On home screen.");
+            return;
+        }
+
+        console.log("🔹 On unknown screen. Trying back navigation...");
+        for (let i = 0; i < 4; i++) {
+            await driver.back();
+            await driver.pause(1000);
+            if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 2000)) {
+                console.log("✅ Returned to home via back button.");
+                return;
+            }
+        }
+
+        throw new Error("FATAL: Could not navigate to home screen.");
+    });
 }
 
 

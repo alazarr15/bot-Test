@@ -17,7 +17,7 @@ async function processTelebirrWithdrawal({ driver, account_number, amount}) {
         console.log("🚀 Starting the Telebirr withdrawal task...");
 
         // 1. Ensure the app is at the home screen.
-        await navigateToHome(driver);
+        await navigateToHome();
 
         // 2. Navigate to the Send Money section.
         console.log("➡️ Navigating to Send Money...");
