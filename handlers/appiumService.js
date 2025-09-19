@@ -36,30 +36,31 @@ const opts = {
     }
 };
 
-// Centralized Selectors for easier updates
+
+
+
+// Centralized Selectors
+
 const SELECTORS = {
-    LOGIN_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
-    LOGIN_PIN_KEYPAD: {
-        "0": "id=cn.tydic.ethiopay:id/tv_input_0", "1": "id=cn.tydic.ethiopay:id/tv_input_1",
-        "2": "id=cn.tydic.ethiopay:id/tv_input_2", "3": "id=cn.tydic.ethiopay:id/tv_input_3",
-        "4": "id=cn.tydic.ethiopay:id/tv_input_4", "5": "id=cn.tydic.ethiopay:id/tv_input_5",
-        "6": "id=cn.tydic.ethiopay:id/tv_input_6", "7": "id=cn.tydic.ethiopay:id/tv_input_7",
-        "8": "id=cn.tydic.ethiopay:id/tv_input_8", "9": "id=cn.tydic.ethiopay:id/tv_input_9",
-    },
-    MAIN_PAGE_CONTAINER: "id=cn.tydic.ethiopay:id/rl_function_container",
-    // NOTE: Using indexes like `instance(0)` can be brittle. If more specific selectors
-    // (e.g., with text or content-desc) are available, they should be preferred.
-    SEND_MONEY_BTN: 'android=new UiSelector().className("android.view.ViewGroup").clickable(true).instance(0)',
-    // FIXME: This selector was identical to SEND_MONEY_BTN, which is likely an error.
-    // It has been updated to a more plausible, distinct selector. This should be verified with the app's UI.
-    SEND_MONEY_INDIVIDUAL_BTN: 'android=new UiSelector().text("To Individual")',
-    RECIPIENT_PHONE_INPUT: "id=cn.tydic.ethiopay:id/et_input",
-    RECIPIENT_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
-    AMOUNT_INPUT: "id=cn.tydic.ethiopay:id/et_amount",
-    CONFIRM_PAY_BTN: "id=cn.tydic.ethiopay:id/confirm",
-    // Using a function to generate selectors dynamically is a good pattern.
-    TRANSACTION_PIN_KEYPAD: (digit) => `android=new UiSelector().resourceId("cn.tydic.ethiopay:id/tv_key").text("${digit}")`,
-    TRANSACTION_FINISHED_BTN: "id=cn.tydic.ethiopay:id/btn_confirm",
+    LOGIN_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
+    LOGIN_PIN_KEYPAD: {
+        "0": "id=cn.tydic.ethiopay:id/tv_input_0", "1": "id=cn.tydic.ethiopay:id/tv_input_1",
+        "2": "id=cn.tydic.ethiopay:id/tv_input_2", "3": "id=cn.tydic.ethiopay:id/tv_input_3",
+        "4": "id=cn.tydic.ethiopay:id/tv_input_4", "5": "id=cn.tydic.ethiopay:id/tv_input_5",
+        "6": "id=cn.tydic.ethiopay:id/tv_input_6", "7": "id=cn.tydic.ethiopay:id/tv_input_7",
+        "8": "id=cn.tydic.ethiopay:id/tv_input_8", "9": "id=cn.tydic.ethiopay:id/tv_input_9",
+
+    },
+
+    MAIN_PAGE_CONTAINER: "id=cn.tydic.ethiopay:id/rl_function_container",
+    SEND_MONEY_BTN: 'android=new UiSelector().className("android.view.ViewGroup").clickable(true).instance(0)',
+    SEND_MONEY_INDIVIDUAL_BTN: 'android=new UiSelector().className("android.view.ViewGroup").clickable(true).instance(0)',
+    RECIPIENT_PHONE_INPUT: "id=cn.tydic.ethiopay:id/et_input",
+    RECIPIENT_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
+    AMOUNT_INPUT: "id=cn.tydic.ethiopay:id/et_amount",
+    CONFIRM_PAY_BTN: "id=cn.tydic.ethiopay:id/confirm",
+    TRANSACTION_PIN_KEYPAD: (digit) => `android=new UiSelector().resourceId("cn.tydic.ethiopay:id/tv_key").text("${digit}")`,
+    TRANSACTION_FINISHED_BTN: "id=cn.tydic.ethiopay:id/btn_confirm",
 };
 
 // --- Driver Management ---
