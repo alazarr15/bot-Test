@@ -56,14 +56,31 @@ const SELECTORS = {
 // --- Driver Management ---
 let driver = null;
 
+/**
+ * Gets the current Appium driver session, or creates a new one if it's lost or doesn't exist.
+ * This function is robust and handles session expiry gracefully.
+ * @returns {Promise<import("webdriverio").Browser>}
+ */
 async function getDriver() {
-    try {
-        if (!driver || !(await driver.isMobile)) {
-            console.log("🔌 Driver not found or session lost. Creating new Appium session...");
-            if (driver) await driver.deleteSession().catch(e => console.error("Error deleting old session:", e));
-            driver = await wdio.remote(opts);
-            console.log("✅ Appium session started successfully.");
+    // If a driver exists, check its status to see if the session is still valid.
+    if (driver) {
+        try {
+            await driver.getStatus(); // A lightweight command to check the session status.
+            return driver; // Session is active, return the existing driver.
+        } catch (e) {
+            console.warn("🤔 Appium session lost or unresponsive. Attempting to create a new one.");
+            driver = null; // Mark driver as null to force recreation.
         }
+    }
+
+    try {
+        console.log("🔌 Driver not found or session lost. Creating new Appium session...");
+        // If a driver object existed but was stale, attempt to delete the session cleanly
+        if (driver) {
+            await driver.deleteSession().catch(e => console.error("Error deleting old session:", e));
+        }
+        driver = await wdio.remote(opts);
+        console.log("✅ Appium session started successfully.");
         return driver;
     } catch (error) {
         console.error("🔥 Failed to create or get Appium driver:", error);
@@ -90,34 +107,60 @@ async function isDisplayedWithin(driver, selector, timeout = 30000) {
     }
 }
 
-async function ensureDeviceIsUnlocked(driver) {
-    console.log("🔐 Checking device lock state...");
-    const isLocked = await driver.isLocked();
-    if (isLocked) {
-        console.log("📱 Device is locked. Attempting to unlock...");
-        // Use the native Appium unlock command, which is more reliable than key codes or swipes.
-        await driver.unlock();
-        await driver.pause(2000); // Wait for the unlock animation to finish
-        console.log("✅ Unlock attempt completed. Device should now be unlocked.");
-    } else {
-        console.log("✅ Device is already unlocked.");
+async function ensureDeviceIsUnlocked() {
+    // This is the new, fixed logic. It now gets a fresh driver inside the function.
+    let currentDriver = await getDriver();
+    
+    // Add a retry loop in case the first attempt to check the lock state fails
+    // due to an unexpected session issue.
+    for (let i = 0; i < 2; i++) {
+        try {
+            console.log("🔐 Checking device lock state...");
+            const isLocked = await currentDriver.isLocked();
+            if (isLocked) {
+                console.log("📱 Device is locked. Attempting to unlock...");
+                // Use the native Appium unlock command, which is more reliable than key codes or swipes.
+                await currentDriver.unlock();
+                await currentDriver.pause(2000); // Wait for the unlock animation to finish
+                console.log("✅ Unlock attempt completed. Device should now be unlocked.");
+            } else {
+                console.log("✅ Device is already unlocked.");
+            }
+            // If we get here without an error, the operation was successful.
+            return;
+        } catch (e) {
+            if (e.message.includes("terminated") || e.message.includes("not started")) {
+                console.warn("⚠️ Appium session was invalid during unlock check. Attempting to get a new driver and retry.");
+                // Get a new driver and continue the loop to retry
+                currentDriver = await getDriver();
+            } else {
+                // If the error is not a session issue, rethrow it.
+                throw e;
+            }
+        }
     }
+    
+    // If the loop completes without success, throw an error.
+    throw new Error("Failed to ensure device is unlocked after multiple attempts.");
 }
 
 
 async function enterPin(driver, pin, isTransactionPin = false) {
-
-    console.log(`🔹 Entering ${isTransactionPin ? 'transaction' : 'login'} PIN...`);
-    for (const digit of pin) {
-        const selector = isTransactionPin ? SELECTORS.TRANSACTION_PIN_KEYPAD(digit) : SELECTORS.LOGIN_PIN_KEYPAD[digit];
-        const btn = await driver.$(selector);
-        await btn.click();
-    }
+    console.log(`🔹 Entering ${isTransactionPin ? 'transaction' : 'login'} PIN...`);
+    for (const digit of pin) {
+        const selector = isTransactionPin ? SELECTORS.TRANSACTION_PIN_KEYPAD(digit) : SELECTORS.LOGIN_PIN_KEYPAD[digit];
+        const btn = await driver.$(selector);
+        await btn.click();
+    }
 
 }
 
-async function navigateToHome(driver) {
-    await ensureDeviceIsUnlocked(driver);
+async function navigateToHome() {
+    // The ensureDeviceIsUnlocked function now handles its own driver retrieval and error handling,
+    // so we don't need to pass one.
+    await ensureDeviceIsUnlocked();
+    
+    const driver = await getDriver(); // Get a valid driver for the remaining steps.
     console.log("🧠 Checking app state and navigating to home screen...");
 
     if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 5000)) {
@@ -125,7 +168,7 @@ async function navigateToHome(driver) {
         return;
     }
 
-     // If not on the main screen, assume it's not open and activate it.
+    // If not on the main screen, assume it's not open and activate it.
     console.log("🚀 App not on home screen. Attempting to activate...");
     await driver.activateApp(opts.capabilities.alwaysMatch["appium:appPackage"]);
 
