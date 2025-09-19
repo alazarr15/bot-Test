@@ -41,27 +41,27 @@ const opts = {
 
 // Centralized Selectors
 
+// Centralized Selectors
 const SELECTORS = {
-    LOGIN_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
-    LOGIN_PIN_KEYPAD: {
-        "0": "id=cn.tydic.ethiopay:id/tv_input_0", "1": "id=cn.tydic.ethiopay:id/tv_input_1",
-        "2": "id=cn.tydic.ethiopay:id/tv_input_2", "3": "id=cn.tydic.ethiopay:id/tv_input_3",
-        "4": "id=cn.tydic.ethiopay:id/tv_input_4", "5": "id=cn.tydic.ethiopay:id/tv_input_5",
-        "6": "id=cn.tydic.ethiopay:id/tv_input_6", "7": "id=cn.tydic.ethiopay:id/tv_input_7",
-        "8": "id=cn.tydic.ethiopay:id/tv_input_8", "9": "id=cn.tydic.ethiopay:id/tv_input_9",
-
-    },
-
-    MAIN_PAGE_CONTAINER: "id=cn.tydic.ethiopay:id/rl_function_container",
-    SEND_MONEY_BTN: 'android=new UiSelector().resourceId("cn.tydic.ethiopay:id/rl_function_container").childSelector(new UiSelector().clickable(true).instance(0))',
-    SEND_MONEY_INDIVIDUAL_BTN: 'android=new UiSelector().className("android.view.ViewGroup").clickable(true).instance(0)',
-    RECIPIENT_PHONE_INPUT: "id=cn.tydic.ethiopay:id/et_input",
-    RECIPIENT_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
-    AMOUNT_INPUT: "id=cn.tydic.ethiopay:id/et_amount",
-    CONFIRM_PAY_BTN: "id=cn.tydic.ethiopay:id/confirm",
-    TRANSACTION_PIN_KEYPAD: (digit) => `android=new UiSelector().resourceId("cn.tydic.ethiopay:id/tv_key").text("${digit}")`,
-    TRANSACTION_FINISHED_BTN: "id=cn.tydic.ethiopay:id/btn_confirm",
+    LOGIN_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
+    LOGIN_PIN_KEYPAD: {
+        "0": "id=cn.tydic.ethiopay:id/tv_input_0", "1": "id=cn.tydic.ethiopay:id/tv_input_1",
+        "2": "id=cn.tydic.ethiopay:id/tv_input_2", "3": "id=cn.tydic.ethiopay:id/tv_input_3",
+        "4": "id=cn.tydic.ethiopay:id/tv_input_4", "5": "id=cn.tydic.ethiopay:id/tv_input_5",
+        "6": "id=cn.tydic.ethiopay:id/tv_input_6", "7": "id=cn.tydic.ethiopay:id/tv_input_7",
+        "8": "id=cn.tydic.ethiopay:id/tv_input_8", "9": "id=cn.tydic.ethiopay:id/tv_input_9",
+    },
+    MAIN_PAGE_CONTAINER: "id=cn.tydic.ethiopay:id/rl_function_container",
+    SEND_MONEY_BTN: 'android=new UiSelector().className("android.view.ViewGroup").clickable(true).instance(0)',
+    SEND_MONEY_INDIVIDUAL_BTN: 'android=new UiSelector().className("android.view.ViewGroup").clickable(true).instance(0)',
+    RECIPIENT_PHONE_INPUT: "id=cn.tydic.ethiopay:id/et_input",
+    RECIPIENT_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
+    AMOUNT_INPUT: "id=cn.tydic.ethiopay:id/et_amount",
+    CONFIRM_PAY_BTN: "id=cn.tydic.ethiopay:id/confirm",
+    TRANSACTION_PIN_KEYPAD: (digit) => `android=new UiSelector().resourceId("cn.tydic.ethiopay:id/tv_key").text("${digit}")`,
+    TRANSACTION_FINISHED_BTN: "id=cn.tydic.ethiopay:id/btn_confirm",
 };
+
 
 // --- Driver Management ---
 
@@ -183,41 +183,38 @@ async function enterPin(drv, pin, isTransactionPin = false) {
  */
 async function navigateToHome(drv, retries = 1) {
         await ensureDeviceIsUnlocked(drv);
-        console.log("🧠 Navigating to home screen...");
-    
-        // Activate the app (re-focus)
-        await drv.activateApp(opts.capabilities.alwaysMatch["appium:appPackage"]);
-        await drv.pause(2000); // Allow UI to refresh
-    
-        // Check if we are already on main screen
-        if (await isDisplayedWithin(drv, SELECTORS.MAIN_PAGE_CONTAINER, 5000)) {
-            console.log("✅ Already on home screen.");
-            return;
-        }
-    
-        // Login flow if needed
-        if (await isDisplayedWithin(drv, SELECTORS.LOGIN_NEXT_BTN, 3000)) {
-            console.log("🔹 On login screen. Clicking Next...");
-            await (await drv.$(SELECTORS.LOGIN_NEXT_BTN)).click();
-        }
-    
-        if (await isDisplayedWithin(drv, SELECTORS.LOGIN_PIN_KEYPAD["1"], 3000)) {
-            await enterPin(drv, TELEBIRR_LOGIN_PIN, false);
-            //await drv.$(SELECTORS.MAIN_PAGE_CONTAINER).waitForDisplayed({ timeout: 45000 });
-            console.log("✅ Login successful. On home screen.");
-            return;
-        }
-    
-        // Unknown screen: try back navigation
-        console.log("🔹 On unknown screen. Attempting back navigation...");
-        for (let i = 0; i < 4; i++) {
-            await drv.back();
-            await drv.pause(1000);
-            if (await isDisplayedWithin(drv, SELECTORS.MAIN_PAGE_CONTAINER, 2000)) {
-                console.log("✅ Returned to home screen via back button.");
-                return;
-            }
-        }
+        onsole.log("🧠 Checking app state and navigating to home screen...");
+
+    if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 5000)) {
+        console.log("✅ Already on the home screen.");
+        return;
+    }
+
+     // If not on the main screen, assume it's not open and activate it.
+    console.log("🚀 App not on home screen. Attempting to activate...");
+    await driver.activateApp(opts.capabilities.alwaysMatch["appium:appPackage"]);
+
+    if (await isDisplayedWithin(driver, SELECTORS.LOGIN_NEXT_BTN, 3000)) {
+        console.log("🔹 On login screen. Logging in...");
+        await (await driver.$(SELECTORS.LOGIN_NEXT_BTN)).click();
+    }
+
+    if (await isDisplayedWithin(driver, SELECTORS.LOGIN_PIN_KEYPAD["1"], 3000)) {
+        await enterPin(driver, TELEBIRR_LOGIN_PIN, false);
+        await driver.$(SELECTORS.MAIN_PAGE_CONTAINER).waitForDisplayed({ timeout: 45000 });
+        console.log("✅ Login successful. On home screen.");
+        return;
+    }
+
+    console.log("🔹 On an unknown screen. Attempting to go back to home...");
+    for (let i = 0; i < 4; i++) {
+        await driver.back();
+        await driver.pause(1000);
+        if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 2000)) {
+            console.log("✅ Successfully returned to home screen via back button.");
+            return;
+        }
+    }
     
 
     // 4. As a last resort, reset the driver and retry if attempts are left.
