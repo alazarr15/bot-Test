@@ -1,20 +1,16 @@
 // services/appiumService.js
 // This service manages the single, persistent Appium driver session and all related helpers.
-// Refactored for improved robustness, error handling, and maintainability.
 
 const wdio = require("webdriverio");
 
-// ⚠️ SECURITY: Use environment variables for sensitive info.
-// This prevents hardcoding secrets into the source code.
+// ⚠️ SECURITY: Use environment variables for sensitive info
 const TELEBIRR_LOGIN_PIN = process.env.TELEBIRR_LOGIN_PIN;
 
 if (!TELEBIRR_LOGIN_PIN) {
     throw new Error("Missing required environment variable: TELEBIRR_LOGIN_PIN.");
 }
 
-// --- Centralized Configuration ---
-
-// Appium connection options
+// Centralized Appium options
 const opts = {
     protocol: 'http',
     hostname: '188.245.100.132', // Appium server host
@@ -30,16 +26,11 @@ const opts = {
             "appium:automationName": "UiAutomator2",
             "appium:appPackage": "cn.tydic.ethiopay",
             "appium:appActivity": "com.huawei.module_basic_ui.splash.LauncherActivity",
-            "appium:noReset": true, // Keep app data between sessions
-            "appium:newCommandTimeout": 3600 // Keep session alive for 1 hour of inactivity
+            "appium:noReset": true,
+            "appium:newCommandTimeout": 600
         }
     }
 };
-
-
-
-
-// Centralized Selectors
 
 // Centralized Selectors
 const SELECTORS = {
@@ -62,77 +53,36 @@ const SELECTORS = {
     TRANSACTION_FINISHED_BTN: "id=cn.tydic.ethiopay:id/btn_confirm",
 };
 
-
 // --- Driver Management ---
-
-// Singleton pattern: Holds the single driver instance for the application lifetime.
 let driver = null;
 
-/**
- * Checks if the current driver session is healthy and responsive.
- * @param {object} drv - The driver instance to check.
- * @returns {Promise<boolean>} - True if the driver is healthy, false otherwise.
- */
-async function isDriverHealthy(drv) {
-    if (!drv) return false;
-    try {
-        await drv.getPageSource(); // A lightweight command to check session validity.
-        return true;
-    } catch (err) {
-        console.warn("⚠️ Driver is unhealthy:", err.message);
-        return false;
-    }
-}
-
-/**
- * Retrieves a healthy, ready-to-use Appium driver instance.
- * If a driver doesn't exist or the existing one is unresponsive, it creates a new session.
- * @returns {Promise<object>} - A WDIO driver instance.
- */
 async function getDriver() {
     try {
-        if (!(await isDriverHealthy(driver))) {
-            if (driver) {
-                console.log("🔄 Resetting stale Appium session...");
-                // Suppress errors during cleanup of a defunct session.
-                await driver.deleteSession().catch(() => {});
-            }
-            console.log("🔌 Creating new Appium session...");
+        if (!driver || !(await driver.isMobile)) {
+            console.log("🔌 Driver not found or session lost. Creating new Appium session...");
+            if (driver) await driver.deleteSession().catch(e => console.error("Error deleting old session:", e));
             driver = await wdio.remote(opts);
             console.log("✅ Appium session started successfully.");
         }
         return driver;
     } catch (error) {
         console.error("🔥 Failed to create or get Appium driver:", error);
-        driver = null; // Ensure the broken driver is cleared.
-        throw error; // Re-throw the error to be handled by the caller.
+        driver = null; // Reset on failure
+        throw error; // Propagate error to the worker loop
     }
 }
 
-/**
- * Forcibly resets the current driver instance.
- * This should be used in critical error-recovery scenarios.
- */
 function resetDriver() {
-    console.warn("🔴 Forcibly resetting driver due to a critical error.");
-    if (driver) {
-        driver.deleteSession().catch(() => {});
-    }
+    console.warn("🔴 Resetting driver due to a critical error.");
     driver = null;
 }
 
+
 // --- Helper Functions ---
 
-/**
- * Checks if an element is displayed on the screen within a specified timeout.
- * @param {object} drv - The driver instance.
- * @param {string} selector - The element selector.
- * @param {number} [timeout=30000] - Timeout in milliseconds.
- * @returns {Promise<boolean>} - True if the element is displayed.
- */
-async function isDisplayedWithin(drv, selector, timeout = 30000) {
+async function isDisplayedWithin(driver, selector, timeout = 30000) {
     try {
-        const element = await drv.$(selector);
+        const element = await driver.$(selector);
         await element.waitForDisplayed({ timeout });
         return true;
     } catch (e) {
@@ -140,50 +90,35 @@ async function isDisplayedWithin(drv, selector, timeout = 30000) {
     }
 }
 
-/**
- * Ensures the device screen is unlocked before proceeding.
- * @param {object} drv - The driver instance.
- */
-async function ensureDeviceIsUnlocked(drv) {
+async function ensureDeviceIsUnlocked(driver) {
     console.log("🔐 Checking device lock state...");
-    if (await drv.isLocked()) {
+    const isLocked = await driver.isLocked();
+    if (isLocked) {
         console.log("📱 Device is locked. Attempting to unlock...");
-        await drv.unlock();
-        // Wait for a known element on the home screen instead of a fixed pause.
-        await drv.waitUntil(
-            async () => (await drv.getDisplayDensity()) > 0,
-            { timeout: 5000, timeoutMsg: "Device did not unlock in time" }
-        );
-        console.log("✅ Unlock attempt completed.");
+        // Use the native Appium unlock command, which is more reliable than key codes or swipes.
+        await driver.unlock();
+        await driver.pause(2000); // Wait for the unlock animation to finish
+        console.log("✅ Unlock attempt completed. Device should now be unlocked.");
     } else {
         console.log("✅ Device is already unlocked.");
     }
 }
 
-/**
- * Enters a PIN using the app's custom keypad.
- * @param {object} drv - The driver instance.
- * @param {string} pin - The PIN to enter.
- * @param {boolean} [isTransactionPin=false] - True if using the transaction PIN keypad.
- */
-async function enterPin(drv, pin, isTransactionPin = false) {
-    console.log(`🔹 Entering ${isTransactionPin ? 'transaction' : 'login'} PIN...`);
-    for (const digit of pin) {
-        const selector = isTransactionPin ? SELECTORS.TRANSACTION_PIN_KEYPAD(digit) : SELECTORS.LOGIN_PIN_KEYPAD[digit];
-        const btn = await drv.$(selector);
-        await btn.click();
-    }
+
+async function enterPin(driver, pin, isTransactionPin = false) {
+
+    console.log(`🔹 Entering ${isTransactionPin ? 'transaction' : 'login'} PIN...`);
+    for (const digit of pin) {
+        const selector = isTransactionPin ? SELECTORS.TRANSACTION_PIN_KEYPAD(digit) : SELECTORS.LOGIN_PIN_KEYPAD[digit];
+        const btn = await driver.$(selector);
+        await btn.click();
+    }
+
 }
 
-/**
- * A robust function to navigate the app to its main home screen from any state.
- * Includes a retry mechanism with a limit to prevent infinite loops.
- * @param {object} drv - The driver instance.
- * @param {number} [retries=1] - The number of remaining retry attempts.
- */
-async function navigateToHome(drv, retries = 1) {
-        await ensureDeviceIsUnlocked(drv);
-        onsole.log("🧠 Checking app state and navigating to home screen...");
+async function navigateToHome(driver) {
+    await ensureDeviceIsUnlocked(driver);
+    console.log("🧠 Checking app state and navigating to home screen...");
 
     if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 5000)) {
         console.log("✅ Already on the home screen.");
@@ -215,48 +150,10 @@ async function navigateToHome(drv, retries = 1) {
             return;
         }
     }
-    
 
-    // 4. As a last resort, reset the driver and retry if attempts are left.
-    if (retries > 0) {
-        console.warn("🔴 Could not navigate to home. Resetting driver and retrying...");
-        resetDriver();
-        const newDriver = await getDriver();
-        await navigateToHome(newDriver, retries - 1); // Recursive retry with decremented counter.
-    } else {
-        throw new Error("🔥 Failed to navigate to home screen after multiple retries.");
-    }
+    throw new Error("FATAL: Could not navigate to the home screen after multiple attempts.");
 }
 
-// --- Keep-Alive Mechanism ---
-
-let keepAliveInterval = null;
-
-/**
- * Periodically sends a command to the Appium server to prevent the session from timing out.
- * @param {number} [intervalMinutes=5] - The interval in minutes.
- */
-function startKeepAlive(intervalMinutes = 5) {
-    console.log(`🟢 Starting keep-alive mechanism with a ${intervalMinutes}-minute interval.`);
-    // Clear any existing interval to prevent duplicates.
-    if (keepAliveInterval) clearInterval(keepAliveInterval);
-
-    keepAliveInterval = setInterval(async () => {
-        try {
-            const drv = await getDriver();
-            await drv.getPageSource(); // Ping the server.
-            console.log("✔️ Keep-alive ping successful.");
-        } catch (err) {
-            console.warn("⚠️ Keep-alive ping failed:", err.message);
-            console.log("🔄 Attempting driver reset due to keep-alive failure...");
-            resetDriver();
-            await getDriver().catch((e) => console.error("🔥 Failed to restart driver after keep-alive failure.", e));
-        }
-    }, intervalMinutes * 60 * 1000);
-}
-
-// Automatically start the keep-alive when the module is loaded.
-startKeepAlive();
 
 module.exports = {
     getDriver,
@@ -265,5 +162,5 @@ module.exports = {
     enterPin,
     ensureDeviceIsUnlocked,
     SELECTORS,
-    TELEBIRR_LOGIN_PIN,
+    TELEBIRR_LOGIN_PIN
 };

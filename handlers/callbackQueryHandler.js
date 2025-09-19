@@ -356,4 +356,3 @@ Share Boss Bingo with your friends and earn rewards when they join using your li
         await ctx.answerCbQuery("✅ Link copied!", { show_alert: false });
     });
 };
-
