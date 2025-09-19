@@ -27,7 +27,7 @@ const opts = {
             "appium:appPackage": "cn.tydic.ethiopay",
             "appium:appActivity": "com.huawei.module_basic_ui.splash.LauncherActivity",
             "appium:noReset": true,
-            "appium:newCommandTimeout": 600
+            "appium:newCommandTimeout": 3600
         }
     }
 };
@@ -97,8 +97,6 @@ async function getDriver() {
         throw error;
     }
 }
-
-
 
 function resetDriver() {
     console.warn("🔴 Resetting driver due to a critical error.");
@@ -203,6 +201,17 @@ async function navigateToHome() {
         throw new Error("FATAL: Could not navigate to home screen.");
     });
 }
+
+
+setInterval(async () => {
+    try {
+        const d = await getDriver();
+        await d.getPageSource(); // lightweight call to keep session alive
+    } catch (e) {
+        console.warn("Heartbeat failed, driver will be reset:", e.message);
+        resetDriver();
+    }
+}, 4 * 60 * 1000); 
 
 
 module.exports = {

@@ -63,7 +63,7 @@ async function processTelebirrWithdrawal({ driver, account_number, amount}) {
         
         // 8. Enter the transaction PIN to finalize the transfer.
         console.log("🔑 Entering transaction PIN...");
-        await enterPin(driver, TELEBIRR_LOGIN_PIN, true);
+        await enterPin(TELEBIRR_LOGIN_PIN, true);
         
         // 9. Wait for the transaction to finish and the final confirmation button to appear.
         const finishedBtn = await driver.$(SELECTORS.TRANSACTION_FINISHED_BTN);
@@ -79,6 +79,7 @@ async function processTelebirrWithdrawal({ driver, account_number, amount}) {
             message: "Withdrawal completed successfully.",
             data: { tx_ref: `TX-${Date.now()}` }
         };
+
         
     } catch (error) {
         console.error("❌ An error occurred during the withdrawal process:", error);
