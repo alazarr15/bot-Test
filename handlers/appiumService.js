@@ -58,19 +58,42 @@ let driver = null;
 
 async function getDriver() {
     try {
-        if (!driver || !(await driver.isMobile)) {
-            console.log("🔌 Driver not found or session lost. Creating new Appium session...");
-            if (driver) await driver.deleteSession().catch(e => console.error("Error deleting old session:", e));
-            driver = await wdio.remote(opts);
-            console.log("✅ Appium session started successfully.");
+        let needsNewSession = false;
+
+        if (!driver) {
+            needsNewSession = true;
+            console.log("🔌 No existing driver. Creating new Appium session...");
+        } else {
+            try {
+                // Lightweight check to see if UiAutomator2 connection is still alive
+                await driver.status();  
+            } catch (err) {
+                console.warn("⚠️ Driver session stale or UiAutomator2 disconnected:", err.message);
+                needsNewSession = true;
+            }
         }
+
+        if (needsNewSession) {
+            if (driver) {
+                try {
+                    await driver.deleteSession();
+                } catch (e) {
+                    console.error("Error cleaning up old driver session:", e.message);
+                }
+            }
+
+            driver = await wdio.remote(opts);
+            console.log("✅ New Appium session started successfully.");
+        }
+
         return driver;
     } catch (error) {
-        console.error("🔥 Failed to create or get Appium driver:", error);
+        console.error("🔥 Failed to create or get Appium driver:", error.message);
         driver = null; // Reset on failure
-        throw error; // Propagate error to the worker loop
+        throw error;
     }
 }
+
 
 function resetDriver() {
     console.warn("🔴 Resetting driver due to a critical error.");
