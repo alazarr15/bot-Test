@@ -56,37 +56,28 @@ const SELECTORS = {
 // --- Driver Management ---
 let driver = null;
 
-/**
- * Gets the current Appium driver session, or creates a new one if it's lost or doesn't exist.
- * This function is robust and handles session expiry gracefully.
- * @returns {Promise<import("webdriverio").Browser>}
- */
 async function getDriver() {
-    // If a driver exists, check its status to see if the session is still valid.
-    if (driver) {
         try {
-            await driver.getStatus(); // A lightweight command to check the session status.
-            return driver; // Session is active, return the existing driver.
-        } catch (e) {
-            console.warn("🤔 Appium session lost or unresponsive. Attempting to create a new one.");
-            driver = null; // Mark driver as null to force recreation.
+            if (!driver) {
+                console.log("🔌 No driver found. Creating new Appium session...");
+                driver = await wdio.remote(opts);
+                console.log("✅ Appium session started successfully.");
+            } else {
+                try {
+                    await driver.getStatus(); // verify session is alive
+                } catch (e) {
+                    console.warn("🤔 Session lost. Re-creating...");
+                    driver = await wdio.remote(opts);
+                    console.log("✅ Appium session restarted successfully.");
+                }
+            }
+            return driver;
+        } catch (error) {
+            console.error("🔥 Failed to create or get Appium driver:", error);
+            driver = null;
+            throw error;
         }
-    }
 
-    try {
-        console.log("🔌 Driver not found or session lost. Creating new Appium session...");
-        // If a driver object existed but was stale, attempt to delete the session cleanly
-        if (driver) {
-            await driver.deleteSession().catch(e => console.error("Error deleting old session:", e));
-        }
-        driver = await wdio.remote(opts);
-        console.log("✅ Appium session started successfully.");
-        return driver;
-    } catch (error) {
-        console.error("🔥 Failed to create or get Appium driver:", error);
-        driver = null; // Reset on failure
-        throw error; // Propagate error to the worker loop
-    }
 }
 
 function resetDriver() {
@@ -107,97 +98,70 @@ async function isDisplayedWithin(driver, selector, timeout = 30000) {
     }
 }
 
-async function ensureDeviceIsUnlocked() {
-    let currentDriver = await getDriver();
-    
-    for (let i = 0; i < 2; i++) {
-        try {
-            console.log("🔐 Checking device lock state...");
-            const isLocked = await currentDriver.isLocked();
-            if (isLocked) {
-                console.log("📱 Device is locked. Attempting to unlock...");
-                await currentDriver.unlock();
-                await currentDriver.pause(2000); 
-                console.log("✅ Unlock attempt completed. Device should now be unlocked.");
-            } else {
-                console.log("✅ Device is already unlocked.");
-            }
-            return;
-        } catch (e) {
-            if (e.message.includes("terminated") || e.message.includes("not started")) {
-                console.warn("⚠️ Appium session was invalid during unlock check. Attempting to get a new driver and retry.");
-                currentDriver = await getDriver();
-            } else {
-                throw e;
-            }
-        }
+async function ensureDeviceIsUnlocked(driver) {
+     if (!driver) {
+        driver = await getDriver();
     }
-    
-    throw new Error("Failed to ensure device is unlocked after multiple attempts.");
+    console.log("🔐 Checking device lock state...");
+    const isLocked = await driver.isLocked();
+    if (isLocked) {
+        console.log("📱 Device is locked. Attempting to unlock...");
+        // Use the native Appium unlock command, which is more reliable than key codes or swipes.
+        await driver.unlock();
+        await driver.pause(2000); // Wait for the unlock animation to finish
+        console.log("✅ Unlock attempt completed. Device should now be unlocked.");
+    } else {
+        console.log("✅ Device is already unlocked.");
+    }
 }
 
 
 async function enterPin(driver, pin, isTransactionPin = false) {
-    console.log(`🔹 Entering ${isTransactionPin ? 'transaction' : 'login'} PIN...`);
-    for (const digit of pin) {
-        const selector = isTransactionPin ? SELECTORS.TRANSACTION_PIN_KEYPAD(digit) : SELECTORS.LOGIN_PIN_KEYPAD[digit];
-        try {
-            const btn = await driver.$(selector);
-            await btn.click();
-        } catch (e) {
-            console.error(`❌ Failed to click pin digit '${digit}'. Element selector: ${selector}. Error: ${e.message}`);
-            // Re-throw the error to be handled by the outer retry loop.
-            throw e;
-        }
-    }
+    console.log(`🔹 Entering ${isTransactionPin ? 'transaction' : 'login'} PIN...`);
+    for (const digit of pin) {
+        const selector = isTransactionPin ? SELECTORS.TRANSACTION_PIN_KEYPAD(digit) : SELECTORS.LOGIN_PIN_KEYPAD[digit];
+        const btn = await driver.$(selector);
+        await btn.click();
+    }
 
 }
 
-async function navigateToHome() {
-    try {
-        await ensureDeviceIsUnlocked();
-        const driver = await getDriver();
-        console.log("🧠 Checking app state and navigating to home screen...");
+async function navigateToHome(driver) {
+    await ensureDeviceIsUnlocked(driver);
+    console.log("🧠 Checking app state and navigating to home screen...");
 
-        if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 5000)) {
-            console.log("✅ Already on the home screen.");
-            return;
-        }
-
-        console.log("🚀 App not on home screen. Attempting to activate...");
-        await driver.activateApp(opts.capabilities.alwaysMatch["appium:appPackage"]);
-
-        if (await isDisplayedWithin(driver, SELECTORS.LOGIN_NEXT_BTN, 3000)) {
-            console.log("🔹 On login screen. Logging in...");
-            await (await driver.$(SELECTORS.LOGIN_NEXT_BTN)).click();
-        }
-
-        if (await isDisplayedWithin(driver, SELECTORS.LOGIN_PIN_KEYPAD["1"], 3000)) {
-            await enterPin(driver, TELEBIRR_LOGIN_PIN, false);
-            await driver.$(SELECTORS.MAIN_PAGE_CONTAINER).waitForDisplayed({ timeout: 45000 });
-            console.log("✅ Login successful. On home screen.");
-            return;
-        }
-
-        console.log("🔹 On an unknown screen. Attempting to go back to home...");
-        for (let i = 0; i < 4; i++) {
-            await driver.back();
-            await driver.pause(1000);
-            if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 2000)) {
-                console.log("✅ Successfully returned to home screen via back button.");
-                return;
-            }
-        }
-
-        throw new Error("FATAL: Could not navigate to the home screen after multiple attempts.");
-    } catch (e) {
-        // This is the new, more robust error handling
-        if (e.message.includes("WebDriverError") || e.message.includes("could not be located")) {
-            console.error(`🚨 Fatal WebDriver state detected: ${e.message}. Attempting full driver reset.`);
-            resetDriver();
-        }
-        throw e; // Re-throw the error to be caught by the main worker loop.
+    if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 5000)) {
+        console.log("✅ Already on the home screen.");
+        return;
     }
+
+     // If not on the main screen, assume it's not open and activate it.
+    console.log("🚀 App not on home screen. Attempting to activate...");
+    await driver.activateApp(opts.capabilities.alwaysMatch["appium:appPackage"]);
+
+    if (await isDisplayedWithin(driver, SELECTORS.LOGIN_NEXT_BTN, 3000)) {
+        console.log("🔹 On login screen. Logging in...");
+        await (await driver.$(SELECTORS.LOGIN_NEXT_BTN)).click();
+    }
+
+    if (await isDisplayedWithin(driver, SELECTORS.LOGIN_PIN_KEYPAD["1"], 3000)) {
+        await enterPin(driver, TELEBIRR_LOGIN_PIN, false);
+        await driver.$(SELECTORS.MAIN_PAGE_CONTAINER).waitForDisplayed({ timeout: 45000 });
+        console.log("✅ Login successful. On home screen.");
+        return;
+    }
+
+    console.log("🔹 On an unknown screen. Attempting to go back to home...");
+    for (let i = 0; i < 4; i++) {
+        await driver.back();
+        await driver.pause(1000);
+        if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 2000)) {
+            console.log("✅ Successfully returned to home screen via back button.");
+            return;
+        }
+    }
+
+    throw new Error("FATAL: Could not navigate to the home screen after multiple attempts.");
 }
 
 
