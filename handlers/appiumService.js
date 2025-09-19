@@ -57,27 +57,20 @@ const SELECTORS = {
 let driver = null;
 
 async function getDriver() {
-        try {
-            if (!driver) {
-                console.log("🔌 No driver found. Creating new Appium session...");
-                driver = await wdio.remote(opts);
-                console.log("✅ Appium session started successfully.");
-            } else {
-                try {
-                    await driver.getStatus(); // verify session is alive
-                } catch (e) {
-                    console.warn("🤔 Session lost. Re-creating...");
-                    driver = await wdio.remote(opts);
-                    console.log("✅ Appium session restarted successfully.");
-                }
-            }
-            return driver;
-        } catch (error) {
-            console.error("🔥 Failed to create or get Appium driver:", error);
-            driver = null;
-            throw error;
+    console.log("getDriver invoked 🔥🔥🔥");
+    try {
+        if (!driver || !(await driver.isMobile)) {
+            console.log("🔌 Driver not found or session lost. Creating new Appium session...");
+            if (driver) await driver.deleteSession().catch(e => console.error("Error deleting old session:", e));
+            driver = await wdio.remote(opts);
+            console.log("✅ Appium session started successfully.");
         }
-
+        return driver;
+    } catch (error) {
+        console.error("🔥 Failed to create or get Appium driver:", error);
+        driver = null; // Reset on failure
+        throw error; // Propagate error to the worker loop
+    }
 }
 
 function resetDriver() {
@@ -99,9 +92,6 @@ async function isDisplayedWithin(driver, selector, timeout = 30000) {
 }
 
 async function ensureDeviceIsUnlocked(driver) {
-     if (!driver) {
-        driver = await getDriver();
-    }
     console.log("🔐 Checking device lock state...");
     const isLocked = await driver.isLocked();
     if (isLocked) {
@@ -117,6 +107,7 @@ async function ensureDeviceIsUnlocked(driver) {
 
 
 async function enterPin(driver, pin, isTransactionPin = false) {
+
     console.log(`🔹 Entering ${isTransactionPin ? 'transaction' : 'login'} PIN...`);
     for (const digit of pin) {
         const selector = isTransactionPin ? SELECTORS.TRANSACTION_PIN_KEYPAD(digit) : SELECTORS.LOGIN_PIN_KEYPAD[digit];
