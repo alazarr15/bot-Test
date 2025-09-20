@@ -1,14 +1,25 @@
-// commands/transferFundsCommand.js
 const User = require("../Model/user");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 
+// You should define this function or import it if it's already defined elsewhere.
+async function clearAllFlows(telegramId) {
+    await User.findOneAndUpdate({ telegramId }, {
+        $set: {
+            withdrawalInProgress: null,
+            transferInProgress: null,
+            registrationInProgress: null,
+            usernameChangeInProgress: null,
+            depositInProgress: null
+        }
+    });
+}
+
 module.exports = function (bot) {
-    // Command to start fund transfer
     bot.command("transfer_funds", async (ctx) => {
         const telegramId = ctx.from.id;
 
         try {
-            // ✅ Rate limit
+            // Apply rate limiting
             await userRateLimiter.consume(telegramId);
             await globalRateLimiter.consume("global");
 
@@ -18,17 +29,10 @@ module.exports = function (bot) {
                 return ctx.reply("🚫 You must register first to transfer funds.");
             }
 
-            // Check if another flow is already in progress
-            if (user.withdrawalInProgress || user.usernameChangeInProgress || user.registrationInProgress) {
-                return ctx.reply("🚫 You are currently in the middle of another operation. Please type /cancel to stop it before starting a new one.");
-            }
-            
-            // Check if transfer is already in progress
-            if (user.transferInProgress) {
-                return ctx.reply("⚠️ You already have a transfer in progress. Please enter the recipient's phone number or type /cancel to abort.");
-            }
+            // ✅ CORRECTED: Clear all other in-progress flows before starting this one.
+            await clearAllFlows(telegramId);
 
-            // ✅ Initialize the dedicated transfer flow state in the database
+            // Initialize the dedicated transfer flow state in the database
             await User.updateOne(
                 { telegramId },
                 { $set: { transferInProgress: { step: 1, recipient: null, amount: 0 } } }

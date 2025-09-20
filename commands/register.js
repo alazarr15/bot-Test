@@ -1,18 +1,34 @@
+// commands/register.js
+
 const User = require("../Model/user");
-// ❌ REMOVED: const { registrationInProgress } = require("../handlers/state/registrationState");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
+
+// Define or import the function
+async function clearAllFlows(telegramId) {
+    await User.findOneAndUpdate({ telegramId }, {
+        $set: {
+            withdrawalInProgress: null,
+            transferInProgress: null,
+            registrationInProgress: null,
+            usernameChangeInProgress: null,
+            depositInProgress: null
+        }
+    });
+}
 
 module.exports = function (bot) {
     bot.command("register", async (ctx) => {
         try {
             const telegramId = ctx.from.id;
 
-            // ✅ Rate limit: 1 request per user
+            // ✅ Apply rate limiting
             await userRateLimiter.consume(telegramId);
-            // ✅ Rate limit: 200 requests globally
             await globalRateLimiter.consume("global");
 
             const user = await User.findOne({ telegramId });
+
+            // ✅ CORRECTED: Clear all other in-progress flows before starting this one.
+            await clearAllFlows(telegramId);
 
             if (user) {
                 return ctx.reply(`ℹ️ You are already registered as *${user.username}*`, {
@@ -20,8 +36,7 @@ module.exports = function (bot) {
                 });
             }
 
-            // ✅ UPDATED: Use the dedicated registrationInProgress field in the database
-            // The `upsert: true` option will create a new user document if one doesn't exist
+            // Set the new persistent state for this flow
             await User.findOneAndUpdate({ telegramId }, {
                 registrationInProgress: { step: 1 }
             }, { upsert: true });

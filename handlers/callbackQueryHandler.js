@@ -130,6 +130,36 @@ module.exports = function (bot) {
             return ctx.answerCbQuery("⏳ Too many requests. Please wait a second.");
         }
 
+        // ⭐ NEW: Handle the 'register' callback query
+        if (data === "register") {
+             await clearAllFlows(telegramId);
+            await ctx.answerCbQuery();
+            const user = await User.findOne({ telegramId });
+
+            if (user) {
+                // User is already registered
+                await ctx.editMessageText(`ℹ️ You are already registered as *${user.username}*`, {
+                    parse_mode: "Markdown",
+                    reply_markup: { inline_keyboard: [] }
+                });
+                // Optional: Send the main menu
+                return ctx.reply("🔄 Main menu:", buildMainMenu(user));
+            }
+
+            // Start the registration flow by setting the state
+            await User.findOneAndUpdate({ telegramId }, {
+                registrationInProgress: { step: 1 }
+            }, { upsert: true });
+
+            return ctx.reply("📲 Please share your contact by clicking the button below.", {
+                reply_markup: {
+                    keyboard: [[{ text: "📞 Share Contact", request_contact: true }]],
+                    one_time_keyboard: true,
+                    resize_keyboard: true
+                }
+            });
+        }
+
        // ⭐ Handle WITHDRAWAL callbacks
 // ⭐ Handle WITHDRAWAL callbacks
 if (data.startsWith("withdraw_")) {
@@ -215,7 +245,7 @@ if (data.startsWith("withdraw_")) {
         if (data === "Play") {
 
             try {
-
+                 await clearAllFlows(telegramId);
                 await ctx.answerCbQuery();
 
                 const user = await User.findOne({ telegramId });
@@ -305,6 +335,7 @@ if (data.startsWith("withdraw_")) {
         // Handle balance callback
         if (data === "balance") {
             try {
+                await clearAllFlows(telegramId);
                 await ctx.answerCbQuery();
                 const user = await User.findOne({ telegramId });
 
@@ -328,6 +359,7 @@ if (data.startsWith("withdraw_")) {
        // Handle invite callback
         if (data === "invite") {
             try {
+                 await clearAllFlows(telegramId);
                 await ctx.answerCbQuery();
                 const inviteLink = `https://t.me/Danbingobot?start=${telegramId}`;
 

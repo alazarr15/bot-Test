@@ -1,15 +1,27 @@
 const User = require("../Model/user");
-// ❌ REMOVED: const { usernameChangeInProgress } = require("../handlers/state/usernameChangeState");
 const { buildMainMenu } = require("../utils/menuMarkup");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 
+// You must either define clearAllFlows here or import it
+// from the callbackQueryHandler.js file.
+async function clearAllFlows(telegramId) {
+    await User.findOneAndUpdate({ telegramId }, {
+        $set: {
+            withdrawalInProgress: null,
+            transferInProgress: null,
+            registrationInProgress: null,
+            usernameChangeInProgress: null,
+            depositInProgress: null
+        }
+    });
+}
+
 module.exports = function (bot) {
-    // Command to start username change
     bot.command("change_username", async (ctx) => {
         const telegramId = ctx.from.id;
 
         try {
-            // ✅ Rate limit
+            // Apply rate limiting
             await userRateLimiter.consume(telegramId);
             await globalRateLimiter.consume("global");
 
@@ -18,12 +30,10 @@ module.exports = function (bot) {
                 return ctx.reply("🚫 You must register first to change your username.");
             }
 
-            // ✅ UPDATED: Check for the persistent state in the user's database document
-            if (user.usernameChangeInProgress) {
-                return ctx.reply("⚠️ You already have a username change in progress. Please type your new username or type /cancel to abort.");
-            }
+            // ✅ CORRECTED: Clear all other in-progress flows before starting this one
+            await clearAllFlows(telegramId);
 
-            // ✅ UPDATED: Set the persistent state in the database
+            // Set the new persistent state for this flow
             await User.findOneAndUpdate({ telegramId }, {
                 usernameChangeInProgress: { step: 1 }
             });
