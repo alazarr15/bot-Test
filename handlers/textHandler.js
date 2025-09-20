@@ -47,33 +47,35 @@ module.exports = function (bot) {
             // ⭐ Fetch the user ONCE at the beginning of the handler
             const user = await User.findOne({ telegramId });
 
-            // ⭐ UNIVERSAL CANCEL FOR SCENES (HIGHEST PRIORITY) ⭐
-            // This checks if the user is in ANY Telegraf scene and types /cancel.
-            if (message === "/cancel" || message === "cancel") {
-                if (ctx.scene && ctx.scene.current && ctx.scene.current.id) {
-                    await ctx.reply("❌ Operation cancelled. You have exited the current flow.");
-                    return ctx.scene.leave(); // Explicitly exit the active scene
-                } 
-                 // ✅ UPDATED: If not in a Telegraf Scene but in username change flow (database state)
-                else if (user?.usernameChangeInProgress) {
-                    // ✅ UPDATED: Clean up state in the database
-                    await User.updateOne({ telegramId }, { $set: { usernameChangeInProgress: false } });
-                    await ctx.reply("❌ Username change cancelled. You can start again with /change_username.");
-                    if (user) return ctx.reply("🔄 Main menu:", buildMainMenu(user));
-                    return;
-                }
-               
-                // ⭐ FIX 3: Add a check for the transfer state
-                else if (user?.transferInProgress) {
-                    await User.updateOne({ telegramId }, { $unset: { transferInProgress: 1 } });
-                    await ctx.reply("❌ Transfer cancelled. Returning to the main menu.", buildMainMenu(user));
-                    return;
-                }
-                else {
-                    // If not in a Telegraf Scene and no custom state is active, just acknowledge.
-                    return ctx.reply("👍 There is no active operation to cancel.");
-                }
-            }
+          
+if (message === "/cancel" || message === "cancel") {
+    if (ctx.scene && ctx.scene.current && ctx.scene.current.id) {
+        await ctx.reply("❌ Operation cancelled. You have exited the current flow.");
+        return ctx.scene.leave(); // Explicitly exit the active scene
+    }
+    
+    // Add this new block to handle the depositInProgress state
+    else if (user?.depositInProgress) {
+        await User.updateOne({ telegramId }, { $unset: { depositInProgress: 1 } });
+        await ctx.reply("❌ Deposit request has been cancelled.");
+        if (user) return ctx.reply("🔄 Main menu:", buildMainMenu(user));
+        return;
+    }
+    
+    // The rest of your existing code goes here...
+    else if (user?.usernameChangeInProgress) {
+        await User.updateOne({ telegramId }, { $set: { usernameChangeInProgress: false } });
+        await ctx.reply("❌ Username change cancelled. You can start again with /change_username.");
+        if (user) return ctx.reply("🔄 Main menu:", buildMainMenu(user));
+        return;
+    } else if (user?.transferInProgress) {
+        await User.updateOne({ telegramId }, { $unset: { transferInProgress: 1 } });
+        await ctx.reply("❌ Transfer cancelled. Returning to the main menu.", buildMainMenu(user));
+        return;
+    } else {
+        return ctx.reply("👍 There is no active operation to cancel.");
+    }
+}
 
             // ⭐ FIX 1: Use the `user` variable consistently.
             const userState = user?.withdrawalInProgress;
