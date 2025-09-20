@@ -2,91 +2,86 @@
 const User = require("../Model/user");
 const Withdrawal = require("../Model/withdrawal");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
+
+const { userWithdrawalStates } = require("./state/withdrawalState");
 const { processTelebirrWithdrawal } = require('./telebirrWorker.js');
+const { getDriver, resetDriver } = require('./appiumService.js'); // 👈 Using the new service
 
 const telebirrWithdrawalQueue = [];
 
 const processQueue = (bot) => {
+
     const runWorker = async () => {
         console.log("🔄 Starting Telebirr withdrawal queue processor...");
+
         while (true) {
             let task = null;
+
             try {
+                // ✅ Simplified driver management. The service handles creation/reconnection.
+                const driver = await getDriver();
+
                 if (telebirrWithdrawalQueue.length > 0) {
                     task = telebirrWithdrawalQueue.shift();
                     const { telegramId, amount, account_number, withdrawalRecordId } = task;
-                    console.log(`🚀 Starting Telebirr withdrawal task for user ${telegramId}`);
-                    
-                    const withdrawalRecord = await Withdrawal.findById(withdrawalRecordId);
-                    if (!withdrawalRecord || withdrawalRecord.status !== 'pending') {
-                        console.log(`⚠️ Task for user ${telegramId} already processed or invalid.`);
-                        await new Promise(resolve => setTimeout(resolve, 2000));
-                        continue;
-                    }
 
-                    // Perform the actual withdrawal
-                    const result = await processTelebirrWithdrawal({ amount, account_number });
+                    console.log(`🚀 Starting Telebirr withdrawal task for user ${telegramId}`);
+
+                    const result = await processTelebirrWithdrawal({ driver, amount, account_number });
+                    console.log("🔍 Telebirr worker result:", JSON.stringify(result, null, 2));
+
                     const isSuccess = result?.status === "success" || result?.message?.toLowerCase().includes("completed");
 
-                    if (isSuccess) {
-                        withdrawalRecord.status = "completed";
+                    const withdrawalRecord = await Withdrawal.findById(withdrawalRecordId);
+                    if (withdrawalRecord) {
+                        withdrawalRecord.status = isSuccess ? "completed" : "failed";
                         if (result?.data?.tx_ref) {
                             withdrawalRecord.tx_ref = result.data.tx_ref;
                         }
                         await withdrawalRecord.save();
-                        console.log(`✅ Withdrawal for user ${telegramId} completed successfully.`);
-                    } else {
+
+                        if (isSuccess) {
+                        withdrawalRecord.status = "completed";
+                        // ... (update tx_ref if available)
+                        await withdrawalRecord.save();
+                        } else {
+                        // ↩️ REFUND STEP (Graceful Failure): The worker failed, so refund the user.
                         withdrawalRecord.status = "failed";
                         await withdrawalRecord.save();
                         
-                        // 🚨 CRITICAL: REFUND USER ON FAILURE
-                        const userToRefund = await User.findOneAndUpdate(
-                            { telegramId: String(telegramId) },
-                            { $inc: { balance: amount } }
-                        );
-                        if (userToRefund) {
-                            console.log(`✅ Refunded ${amount} Birr to user ${telegramId} due to failed withdrawal.`);
-                        } else {
-                            console.error(`🚨 CRITICAL: FAILED TO REFUND USER ${telegramId} for amount ${amount} - user not found.`);
-                        }
+                        console.log(`Refunding ${amount} to user ${telegramId} due to failed withdrawal.`);
+                        // Atomically add the amount back to the user's balance
+                        await User.findOneAndUpdate({ telegramId }, { $inc: { balance: amount } });
+                    }
                     }
 
                     try {
                         await bot.telegram.sendMessage(
                             Number(telegramId),
                             isSuccess
-                                ? `✅ የ*${amount} ብር* ገንዘብ ማውጣትዎ በተሳካ ሁኔታ ተካሂዷል!`
+                                ? `✅ የ*${amount} ብር* ገንዘብ ማውጣትዎ በተሳካ ሁኔታ ተካሂዷൽ!`
                                 : `🚫 የ*${amount} ብር* ገንዘብ ማውጣትዎ አልተሳካም። እባክዎ ቆይተው እንደገና ይሞክሩ።`,
                             { parse_mode: "Markdown" }
                         );
                     } catch (msgErr) {
                         console.error(`❌ Failed to send final message to ${telegramId}:`, msgErr);
                     }
+
                     await new Promise(resolve => setTimeout(resolve, 2000));
                 } else {
                     await new Promise(resolve => setTimeout(resolve, 5000));
                 }
             } catch (loopErr) {
                 console.error("🔥 A critical error occurred in the worker loop:", loopErr);
+                resetDriver(); // ✅ Tell the service to invalidate the driver
+
                 if (task) {
                     console.error(`💀 Error processing task for user: ${task.telegramId}`);
                     try {
                         await Withdrawal.findByIdAndUpdate(task.withdrawalRecordId, { status: "failed" });
-                        
-                        // ✅ IMPORTANT: REVERT THE BALANCE ON ERROR
-                        try {
-                            const userToRefund = await User.findOneAndUpdate(
-                                { telegramId: String(task.telegramId) },
-                                { $inc: { balance: task.amount } }
-                            );
-                            if (userToRefund) {
-                                console.log(`✅ Refunded ${task.amount} Birr to user ${task.telegramId}`);
-                            } else {
-                                console.error(`🚨 CRITICAL: FAILED TO REFUND USER ${task.telegramId} for amount ${task.amount} - user not found on fallback.`);
-                            }
-                        } catch (refundErr) {
-                            console.error(`🚨 CRITICAL: FAILED TO REFUND USER ${task.telegramId} for amount ${task.amount}`, refundErr);
-                        }
+
+                        console.log(`Refunding ${task.amount} to user ${task.telegramId} due to critical error.`);
+                        await User.findOneAndUpdate({ telegramId: task.telegramId }, { $inc: { balance: task.amount } });
 
                         await bot.telegram.sendMessage(
                             Number(task.telegramId),
@@ -101,6 +96,8 @@ const processQueue = (bot) => {
             }
         }
     };
+
+
     runWorker();
 };
 module.exports = function (bot) {
@@ -122,6 +119,8 @@ module.exports = function (bot) {
     bot.on("callback_query", async (ctx) => {
         const telegramId = ctx.from.id;
         const data = ctx.callbackQuery?.data;
+
+        // ✅ Apply rate limiting before processing ANY callbacks
         try {
             await Promise.all([
                 userRateLimiter.consume(telegramId),
@@ -139,8 +138,10 @@ module.exports = function (bot) {
             if (!userState || !userState.step) {
                 return ctx.answerCbQuery("🚫 This conversation has expired. Please start over with /withdraw.");
             }
+
+
             ctx.answerCbQuery();
-            
+
             if (userState.step === "selectBank") {
                 const bankCode = data.split("_")[1];
                 userState.data.bank_code = bankCode;
@@ -151,62 +152,61 @@ module.exports = function (bot) {
                 return ctx.reply(`**${userState.data.bank_name}** መርጠዋል። ለማውጣት የሚፈልጉትን መጠን ይጻፉ።`, {
                     parse_mode: 'Markdown'
                 });
-            } else if (userState.step === "confirm") {
-                if (data === "withdraw_confirm") {
-                    const { amount, bank_code, account_number } = userState.data;
+
+            }
+            else if (userState.step === "confirm") {
+    if (data === "withdraw_confirm") {
+        const { amount, bank_code, account_number } = userState.data;
+
+        // 🏦 STEP 1: Find the user and check their balance
+        const user = await User.findOne({ telegramId });
+
+        if (!user || user.balance < amount) {
+            userWithdrawalStates.delete(telegramId); // Clean up state
+            return ctx.editMessageText("🚫 Insufficient balance. Your withdrawal request has been cancelled.");
+        }
+        
+        // 🏦 STEP 2: Hold the funds by deducting them BEFORE queueing
+        user.balance -= amount;
+
+            try {
+                // This entire block must succeed. If it fails, we'll refund in the catch block.
+                await user.save(); // Save the new lower balance
+
+                await ctx.editMessageText("⏳ Your withdrawal is in the queue. We will notify you upon completion.");
+
+                const withdrawal = new Withdrawal({
+                    tx_ref: `TX-${Date.now()}-${telegramId}`,
+                    telegramId: String(telegramId),
+                    amount,
+                    bank_code,
+                    account_number,
+                    status: 'pending'
+                });
+
+            const savedWithdrawal = await withdrawal.save();
+            userWithdrawalStates.delete(telegramId);
+
+                if (bank_code === "855") {
+                    telebirrWithdrawalQueue.push({
+                        telegramId,
+                        amount,
+                        account_number,
+                        withdrawalRecordId: savedWithdrawal._id
+                    });
+                    console.log(`📥 Added withdrawal for ${telegramId} to queue. Balance held. Queue size: ${telebirrWithdrawalQueue.length}`);
+                 }
+
+                } catch (error) {
+                    console.error("❌ Error submitting withdrawal request, REFUNDING user:", error);
                     
-                    try {
-                        // 🔐 Prevent double-spending
-                        await User.findOneAndUpdate({ telegramId }, { "withdrawalInProgress.step": "pendingConfirmation" });
-                        
-                        await ctx.editMessageText("⏳ ገንዘብ ማውጣት ሂደትዎ ተጀምሯል። በተጠናቀቀ ጊዜ እናሳዉቃለን [1-3] ደቂቃ ለመውጣት /cancel ይጻፉ።");
-                        
-                        // ❌ CRITICAL: Deduct balance here to prevent race conditions
-                        const result = await User.findOneAndUpdate(
-                            { telegramId, balance: { $gte: amount } },
-                            { $inc: { balance: -amount } }
-                        );
+                    // ↩️ REFUND STEP: If saving the user/withdrawal or queueing fails, give the money back.
+                    user.balance += amount;
+                    await user.save(); 
 
-                        if (!result) {
-                            await clearAllFlows(telegramId);
-                            return ctx.reply("🚫 Insufficient balance. Please check your balance and try again.");
-                        }
-
-                        const withdrawal = new Withdrawal({
-                            tx_ref: `TX-${Date.now()}-${telegramId}`,
-                            telegramId: String(telegramId),
-                            amount,
-                            bank_code,
-                            account_number,
-                            status: 'pending'
-                        });
-                        const savedWithdrawal = await withdrawal.save();
-                        
-                        // ✅ Clear the database state after completion
-                        await clearAllFlows(telegramId);
-                        
-                        if (bank_code === "855") {
-                            telebirrWithdrawalQueue.push({
-                                telegramId,
-                                amount,
-                                account_number,
-                                withdrawalRecordId: savedWithdrawal._id
-                            });
-                        }
-
-                    } catch (error) {
-                        console.error("❌ Error submitting withdrawal request:", error);
-                        // ✅ IMPORTANT: REVERT THE BALANCE ON ERROR
-                        const userToRefund = await User.findOneAndUpdate(
-                            { telegramId },
-                            { $inc: { balance: amount } }
-                        );
-                        if (userToRefund) {
-                            console.log(`✅ Refunded ${amount} Birr to user ${telegramId} due to withdrawal submission error.`);
-                        }
-                        await clearAllFlows(telegramId);
-                        return await ctx.reply("🚫 An error occurred while submitting your request. Please try again.");
-                    }
+                    userWithdrawalStates.delete(telegramId);
+                    return await ctx.reply("🚫 An error occurred while submitting your request. Please try again. Your balance has not been changed.");
+                }
                 } else if (data === "withdraw_cancel") {
                     await clearAllFlows(telegramId);
                     await ctx.editMessageText("❌ Withdrawal request has been cancelled.", {
@@ -220,11 +220,6 @@ module.exports = function (bot) {
         }
 
      
-
-
-
-
-
         if (data === "Play") {
 
             try {
@@ -288,12 +283,13 @@ module.exports = function (bot) {
                 await ctx.answerCbQuery();
                 const user = await User.findOne({ telegramId });
                 if (!user) {
-                    return ctx.reply("🚫 You must register first to make a deposit. Please click below to register:", {
+                    return ctx.reply("🚫 You must register first to make a deposit.", {
                         reply_markup: {
                             inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
                         }
                     });
                 }
+
                 return ctx.reply("💰 የገንዘብ ማስገቢያ ዘዴ ይምረጡ:", {
                     reply_markup: {
                         inline_keyboard: [
@@ -306,66 +302,80 @@ module.exports = function (bot) {
                 return ctx.reply("🚫 An error occurred. Please try again.");
             }
         }
+
+
+        // Handle 'manual_deposit' callback
         if (data === "manual_deposit") {
             await ctx.answerCbQuery();
             return ctx.scene.enter("manualDeposit");
         }
-if (data === "balance") {
+
+        // Handle balance callback
+        if (data === "balance") {
+            try {
+                await ctx.answerCbQuery();
+                const user = await User.findOne({ telegramId });
+
+                if (!user) {
+                    return ctx.reply("🚫 You must register first to check your balance.", {
+                        reply_markup: {
+                            inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
+                        }
+                    });
+                }
+
+                return ctx.reply(`💰 ቀሪ ሒሳብዎ: *${user.balance} ብር*`, {
+                    parse_mode: "Markdown"
+                });
+            } catch (error) {
+                console.error("❌ Error in callback balance:", error.message);
+                return ctx.reply("🚫 Failed to fetch your balance. Please try again.");
+            }
+        }
+
+       // Handle invite callback
+        if (data === "invite") {
             try {
                 await ctx.answerCbQuery();
-                const user = await User.findOne({ telegramId });
-                if (!user) {
-                    return ctx.reply("🚫 You must register first to check your balance. Please click below to register:", {
-                        reply_markup: {
-                            inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
-                        }
-                    });
-                }
-                // ⭐ Updated: Display both the regular balance and the bonus balance
-                return ctx.reply(`💰 **የሒሳብዎ ዝርዝር:**
-- **ለመውጣት የሚችል ቀሪ ሒሳብ:** *${user.balance} ብር*
-- **የጉርሻ ቀሪ ሒሳብ:** *${user.bonus_balance || 0} ብር*`, {
-                    parse_mode: "Markdown"
-                });
-            } catch (error) {
-                console.error("❌ Error in callback balance:", error.message);
-                return ctx.reply("🚫 Failed to fetch your balance. Please try again.");
-            }
-        }
+                const inviteLink = `https://t.me/Danbingobot?start=${telegramId}`;
 
+                // ⭐ The message for the share URL needs to be encoded.
+                const shareMessageText = `🎉 Join Lucky Bingo and get a bonus when you register!`;
+                const encodedShareMessage = encodeURIComponent(`${shareMessageText}\n${inviteLink}`);
 
-      if (data === "invite") {
-    await ctx.answerCbQuery();
-    const telegramId = ctx.from.id;
-    const inviteLink = `https://t.me/Danbingobot?start=${telegramId}`;
-
-    const shareMessage = encodeURIComponent(
-        `🎉 Get a **10 Birr** bonus when you join Lucky Bingo through my invite link!\n\n${inviteLink}`
-    );
-
-    const message = `
+                const message = `
 🎉 *Invite & Earn!*
 Share Lucky Bingo with your friends and earn rewards when they join using your link.
 👤 *Your Invite Link:*
 \`${inviteLink}\`
-    `;
+`;
+                return ctx.replyWithMarkdown(message.trim(), {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{
+                                text: "➡️ Share with Friends",
+                                url: `https://t.me/share/url?text=${encodedShareMessage}`
+                            }]
+                        ]
+                    }
+                });
+            } catch (error) {
+                console.error("❌ Error in invite callback:", error.message);
+                return ctx.reply("🚫 An error occurred. Please try again.");
+            }
+        }
 
-    return ctx.replyWithMarkdown(message.trim(), {
-        reply_markup: {
-            inline_keyboard: [
-                [{
-                    text: "➡️ Share with Friends",
-                    url: `https://t.me/share/url?url=${shareMessage}`
-                }]
-            ]
-        }
-    });
-}
+        console.warn(`⚠️ Unhandled callback data: ${data}`);
+        return;
+    });
 
-        console.warn(`⚠️ Unhandled callback data: ${data}`);
-        return;
-    });
+    bot.action("copied", async (ctx) => {
+        await ctx.answerCbQuery("✅ Link copied!", { show_alert: false });
+    });
+};
+
     bot.action("copied", async (ctx) => {
         await ctx.answerCbQuery("✅ Link copied!", { show_alert: false });
     });
-};
+
+    
