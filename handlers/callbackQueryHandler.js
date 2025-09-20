@@ -3,7 +3,6 @@ const User = require("../Model/user");
 const Withdrawal = require("../Model/withdrawal");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 
-const { userWithdrawalStates } = require("./state/withdrawalState");
 const { processTelebirrWithdrawal } = require('./telebirrWorker.js');
 const { getDriver, resetDriver } = require('./appiumService.js'); // 👈 Using the new service
 
@@ -131,49 +130,42 @@ module.exports = function (bot) {
             return ctx.answerCbQuery("⏳ Too many requests. Please wait a second.");
         }
 
-        // --- Handle WITHDRAWAL callbacks ---
-        if (data.startsWith("withdraw_")) {
-            const user = await User.findOne({ telegramId });
-            const userState = user?.withdrawalInProgress;
-            if (!userState || !userState.step) {
-                return ctx.answerCbQuery("🚫 This conversation has expired. Please start over with /withdraw.");
+       // ⭐ Handle WITHDRAWAL callbacks
+// ⭐ Handle WITHDRAWAL callbacks
+if (data.startsWith("withdraw_")) {
+    const user = await User.findOne({ telegramId }); // 👈 Retrieve the user document
+    const userState = user?.withdrawalInProgress; // 👈 Get the state from the document
+
+    if (!user || !userState) { // 👈 Check if the state exists in the DB
+        return ctx.answerCbQuery("🚫 This conversation has expired. Please start over with /withdraw.");
+    }
+
+    ctx.answerCbQuery();
+
+    if (userState.step === "selectBank") {
+        const bankCode = data.split("_")[1];
+        const withdrawalBanks = [{ name: "🏛 CBE", code: "946" }, { name: "📱 Telebirr", code: "855" }];
+        const bankName = withdrawalBanks.find(b => b.code === bankCode)?.name;
+
+        // 👈 Update the state in the database
+        await User.updateOne({ telegramId }, {
+            $set: {
+                "withdrawalInProgress.data.bank_code": bankCode,
+                "withdrawalInProgress.data.bank_name": bankName,
+                "withdrawalInProgress.step": "getAmount",
             }
+        });
 
-
-            ctx.answerCbQuery();
-
-            if (userState.step === "selectBank") {
-                const bankCode = data.split("_")[1];
-                userState.data.bank_code = bankCode;
-                const withdrawalBanks = [{ name: "🏛 CBE", code: "946" }, { name: "📱 Telebirr", code: "855" }];
-                userState.data.bank_name = withdrawalBanks.find(b => b.code === bankCode)?.name;
-                userState.step = "getAmount";
-                await User.findOneAndUpdate({ telegramId }, { withdrawalInProgress: userState });
-                return ctx.reply(`**${userState.data.bank_name}** መርጠዋል። ለማውጣት የሚፈልጉትን መጠን ይጻፉ።`, {
-                    parse_mode: 'Markdown'
-                });
-
-            }
-            else if (userState.step === "confirm") {
-    if (data === "withdraw_confirm") {
-        const { amount, bank_code, account_number } = userState.data;
-
-        // 🏦 STEP 1: Find the user and check their balance
-        const user = await User.findOne({ telegramId });
-
-        if (!user || user.balance < amount) {
-            userWithdrawalStates.delete(telegramId); // Clean up state
-            return ctx.editMessageText("🚫 Insufficient balance. Your withdrawal request has been cancelled.");
-        }
-        
-        // 🏦 STEP 2: Hold the funds by deducting them BEFORE queueing
-        user.balance -= amount;
+        return ctx.reply(`**${bankName}** መርጠዋል። ለማውጣት የሚፈልጉትን መጠን ይጻፉ።`, {
+            parse_mode: 'Markdown'
+        });
+    }
+    else if (userState.step === "confirm") {
+        if (data === "withdraw_confirm") {
+            const { amount, bank_code, account_number } = userState.data;
 
             try {
-                // This entire block must succeed. If it fails, we'll refund in the catch block.
-                await user.save(); // Save the new lower balance
-
-                await ctx.editMessageText("⏳ Your withdrawal is in the queue. We will notify you upon completion.");
+                await ctx.editMessageText("⏳ Your withdrawal is in the queue. We will notify you upon completion. To cancel, type /cancel.");
 
                 const withdrawal = new Withdrawal({
                     tx_ref: `TX-${Date.now()}-${telegramId}`,
@@ -184,41 +176,41 @@ module.exports = function (bot) {
                     status: 'pending'
                 });
 
-            const savedWithdrawal = await withdrawal.save();
-            userWithdrawalStates.delete(telegramId);
+                const savedWithdrawal = await withdrawal.save();
+                
+                // ✅ FIX 1: Change $unset value to 1
+                await User.updateOne({ telegramId }, { $unset: { withdrawalInProgress: 1 } });
 
                 if (bank_code === "855") {
                     telebirrWithdrawalQueue.push({
-                        telegramId,
+                        // ✅ FIX 2: Ensure telegramId is a string here as well
+                        telegramId: String(telegramId),
                         amount,
                         account_number,
                         withdrawalRecordId: savedWithdrawal._id
                     });
-                    console.log(`📥 Added withdrawal for ${telegramId} to queue. Balance held. Queue size: ${telebirrWithdrawalQueue.length}`);
-                 }
-
-                } catch (error) {
-                    console.error("❌ Error submitting withdrawal request, REFUNDING user:", error);
-                    
-                    // ↩️ REFUND STEP: If saving the user/withdrawal or queueing fails, give the money back.
-                    user.balance += amount;
-                    await user.save(); 
-
-                    userWithdrawalStates.delete(telegramId);
-                    return await ctx.reply("🚫 An error occurred while submitting your request. Please try again. Your balance has not been changed.");
+                    console.log(`📥 Added withdrawal for ${telegramId} to the queue. Queue size: ${telebirrWithdrawalQueue.length}`);
                 }
-                } else if (data === "withdraw_cancel") {
-                    await clearAllFlows(telegramId);
-                    await ctx.editMessageText("❌ Withdrawal request has been cancelled.", {
-                        reply_markup: {
-                            inline_keyboard: []
-                        }
-                    });
-                }
+
+            } catch (error) {
+                console.error("❌ Error submitting withdrawal request:", error);
+                
+                // ✅ FIX 1: Change $unset value to 1
+                await User.updateOne({ telegramId }, { $unset: { withdrawalInProgress: 1 } });
+                return await ctx.reply("🚫 An error occurred while submitting your request. Please try again.");
             }
-            return;
+        } else if (data === "withdraw_cancel") {
+            // ✅ FIX 1: Change $unset value to 1
+            await User.updateOne({ telegramId }, { $unset: { withdrawalInProgress: 1 } });
+            await ctx.editMessageText("❌ Withdrawal request has been cancelled.", {
+                reply_markup: {
+                    inline_keyboard: []
+                }
+            });
         }
-
+    }
+    return;
+}
      
         if (data === "Play") {
 
