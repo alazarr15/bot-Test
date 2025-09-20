@@ -347,9 +347,12 @@ if (data.startsWith("withdraw_")) {
                     });
                 }
 
-                return ctx.reply(`💰 ቀሪ ሒሳብዎ: *${user.balance} ብር*`, {
-                    parse_mode: "Markdown"
-                });
+                 return ctx.reply(`💰 **Your Balances:**
+- **Withdrawable Balance:** *${user.balance} Birr*
+- **Bonus Balance:** *${user.bonus_balance || 0} Birr*`, {
+        parse_mode: "Markdown"
+      });
+
             } catch (error) {
                 console.error("❌ Error in callback balance:", error.message);
                 return ctx.reply("🚫 Failed to fetch your balance. Please try again.");
