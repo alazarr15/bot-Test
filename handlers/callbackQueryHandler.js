@@ -366,8 +366,5 @@ Share Lucky Bingo with your friends and earn rewards when they join using your l
     });
 };
 
-    bot.action("copied", async (ctx) => {
-        await ctx.answerCbQuery("✅ Link copied!", { show_alert: false });
-    });
-
+   
     
