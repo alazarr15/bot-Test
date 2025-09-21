@@ -186,7 +186,7 @@ if (data.startsWith("withdraw_")) {
             }
         });
 
-        return ctx.reply(`**${bankName}** መርጠዋል። ለማውጣት የሚፈልጉትን መጠን ይጻፉ።`, {
+        return ctx.reply(`**${bankName}** መርጠዋል። ለማውጣት የሚፈልጉትን መጠን (amount) ይጻፉ።`, {
             parse_mode: 'Markdown'
         });
     }

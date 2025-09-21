@@ -1,7 +1,7 @@
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 
 module.exports = function (bot) {
-  const supportUsername = "Mikyyetklyelij"; // Telegram username without @
+  const supportUsername = "luckybingoss"; // Telegram username without @
   const supportLink = `https://t.me/${supportUsername}`;
 
   const supportMessage = `📞 Need help? Contact support here: [Support Chat](${supportLink})`;
