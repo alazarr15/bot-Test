@@ -101,7 +101,7 @@ const manualDepositScene = new Scenes.WizardScene(
 👉 የከፈለችሁበትን አጭር የጹሁፍ መልክት (sms) ወይም "FT" ብሎ የሚጀምረውን የትራንዛክሽን ቁጥር እዚ ላይ ያስገቡ 👇👇👇
 `;
     } else if (method === "payment_telebirr") {
-      depositType = "ቴሌብር";
+      depositType = "Telebirr";
       instructions = `
     📱 የቴሌብር አካውንት
 
