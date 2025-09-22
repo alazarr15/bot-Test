@@ -330,10 +330,20 @@ if (data.startsWith("withdraw_")) {
 
 
         // Handle 'manual_deposit' callback
-        if (data === "manual_deposit") {
+        if (ctx.callbackQuery.data === "manual_deposit") {
+        try {
             await ctx.answerCbQuery();
-            return ctx.scene.enter("manualDeposit");
+            await User.findOneAndUpdate(
+                { telegramId: ctx.from.id },
+                { $set: { "depositInProgress.status": "awaiting_amount" } },
+                { upsert: true }
+            );
+            return ctx.reply("💰 ለማስገባት የሚፈልጉትን መጠን ያስገቡ: (ለመውጣት /cancel)");
+        } catch (err) {
+            console.error("❌ Error starting manual deposit flow:", err);
+            return ctx.reply("🚫 An error occurred. Please try again.");
         }
+    }
 
         // Handle balance callback
         if (data === "balance") {

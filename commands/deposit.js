@@ -12,10 +12,7 @@ async function clearAllFlows(telegramId) {
                 transferInProgress: null,
                 registrationInProgress: null,
                 usernameChangeInProgress: null,
-                depositInProgress: null,
-                depositStep: null,
-                depositTempAmount: null,
-                depositTempMethod: null,
+                depositInProgress: ""
             },
         }
     );

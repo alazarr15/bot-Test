@@ -46,22 +46,19 @@ const userSchema = new mongoose.Schema({
     default: null,
   },
   depositInProgress: {
-  type: Boolean,
-  default: false,
-},
-depositStep: {
-  type: String, // e.g. "awaiting_amount", "awaiting_method", "awaiting_confirmation"
-  default: null,
-},
-depositTempAmount: {
-  type: Number,
-  default: null,
-},
-depositTempMethod: {
-  type: String, // "CBE" | "Telebirr" | etc.
-  default: null,
-},
-
+    status: {
+      type: String, // e.g., "awaiting_amount", "awaiting_method", "awaiting_sms"
+      default: null,
+    },
+    amount: {
+      type: Number,
+      default: null,
+    },
+    method: {
+      type: String, // "CBE" | "Telebirr"
+      default: null,
+    },
+  },
   usernameChangeInProgress: {
     type: Object,
     default: null,
