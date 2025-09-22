@@ -63,10 +63,15 @@ const manualDepositScene = new Scenes.WizardScene(
 
   // Step 3: Handle payment selection and provide instructions
   async (ctx) => {
+     if (ctx.message && (ctx.message.text === "/cancel" || ctx.message.text.toLowerCase() === "cancel")) {
+      await ctx.reply("❌ deposit cancelled.");
+      return ctx.scene.leave();
+    }
     if (!ctx.callbackQuery || !ctx.callbackQuery.data.startsWith('payment_')) {
       await ctx.reply("Please use the buttons provided to select a payment method. (Type /cancel to exit)");
       return;
     }
+    
     const method = ctx.callbackQuery.data;
     const amount = ctx.wizard.state.depositAmount;
     let instructions = "";

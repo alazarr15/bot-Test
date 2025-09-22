@@ -54,6 +54,7 @@ if (message === "/cancel" || message === "cancel") {
         return ctx.scene.leave(); // Explicitly exit the active scene
     }
     
+    
     // Add this new block to handle the depositInProgress state
   else if (user?.depositInProgress) {
     await User.updateOne(
