@@ -110,7 +110,10 @@ module.exports = function (bot) {
                 transferInProgress: null,
                 registrationInProgress: null,
                 usernameChangeInProgress: null,
-                depositInProgress: null
+                depositInProgress: null,
+                depositStep: null,
+                depositTempAmount: null,
+                depositTempMethod: null
             }
         });
     }
@@ -298,31 +301,39 @@ if (data.startsWith("withdraw_")) {
 
         }
 
-      
+        if (data === "deposit" || /^deposit_\d+$/.test(data)) {
+            try {
+                // ⭐ NEW: Clear any active flows before starting a new one
+                await clearAllFlows(telegramId);
+                await ctx.answerCbQuery();
+                const user = await User.findOne({ telegramId });
+                if (!user) {
+                    return ctx.reply("🚫 You must register first to make a deposit.", {
+                        reply_markup: {
+                            inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
+                        }
+                    });
+                }
 
-
-       if (data === "manual_deposit") {
-      try {
-        // Clear any active flows before starting a new one
-        await clearAllFlows(telegramId);
-        await ctx.answerCbQuery();
-        const user = await User.findOne({ telegramId });
-        if (!user) {
-          return ctx.reply("🚫 You must register first to make a deposit.", {
-            reply_markup: {
-              inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
+                return ctx.reply("💰 የገንዘብ ማስገቢያ ዘዴ ይምረጡ:", {
+                    reply_markup: {
+                        inline_keyboard: [
+                            [{ text: "Manual", callback_data: "manual_deposit" }]
+                        ]
+                    }
+                });
+            } catch (err) {
+                console.error("❌ Error in deposit callback handler:", err.message);
+                return ctx.reply("🚫 An error occurred. Please try again.");
             }
-          });
         }
-        // Set the state for the new database-driven flow
-        await User.updateOne({ telegramId }, { $set: { "depositInProgress.step": "AwaitingAmount" } });
-        return ctx.reply("💰 ለማስገባት የሚፈልጉትን መጠን ያስገቡ: (ለመውጣት /cancel )");
-      } catch (err) {
-        console.error("❌ Error in deposit callback handler:", err.message);
-        return ctx.reply("🚫 An error occurred. Please try again.");
-      }
-    }
 
+
+        // Handle 'manual_deposit' callback
+        if (data === "manual_deposit") {
+            await ctx.answerCbQuery();
+            return ctx.scene.enter("manualDeposit");
+        }
 
         // Handle balance callback
         if (data === "balance") {

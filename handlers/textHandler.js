@@ -55,12 +55,23 @@ if (message === "/cancel" || message === "cancel") {
     }
     
     // Add this new block to handle the depositInProgress state
-    else if (user?.depositInProgress) {
-        await User.updateOne({ telegramId }, { $unset: { depositInProgress: 1 } });
-        await ctx.reply("❌ Deposit request has been cancelled.");
-        if (user) return ctx.reply("🔄 Main menu:", buildMainMenu(user));
-        return;
-    }
+  else if (user?.depositInProgress) {
+    await User.updateOne(
+        { telegramId },
+        {
+            $unset: {
+                depositInProgress: 1,
+                depositStep: 1,
+                depositTempAmount: 1,
+                depositTempMethod: 1,
+            },
+        }
+    );
+    await ctx.reply("❌ Deposit request has been cancelled.");
+    if (user) return ctx.reply("🔄 Main menu:", buildMainMenu(user));
+    return;
+}
+
     
     // The rest of your existing code goes here...
     else if (user?.usernameChangeInProgress) {
