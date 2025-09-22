@@ -45,12 +45,6 @@ const userSchema = new mongoose.Schema({
     type: Object,
     default: null,
   },
-depositInProgress: {
-    status: { type: String, enum: ["awaiting_amount", "awaiting_method", "awaiting_sms", null], default: null },
-    amount: { type: Number, min: 0, default: null },
-    method: { type: String, enum: ["CBE", "Telebirr", null], default: null },
-},
-
   usernameChangeInProgress: {
     type: Object,
     default: null,

@@ -110,10 +110,7 @@ module.exports = function (bot) {
                 transferInProgress: null,
                 registrationInProgress: null,
                 usernameChangeInProgress: null,
-                depositInProgress: null,
-                depositStep: null,
-                depositTempAmount: null,
-                depositTempMethod: null
+                depositInProgress: null
             }
         });
     }
@@ -330,20 +327,10 @@ if (data.startsWith("withdraw_")) {
 
 
         // Handle 'manual_deposit' callback
-        if (ctx.callbackQuery.data === "manual_deposit") {
-        try {
+        if (data === "manual_deposit") {
             await ctx.answerCbQuery();
-            await User.findOneAndUpdate(
-                { telegramId: ctx.from.id },
-                { $set: { "depositInProgress.status": "awaiting_amount" } },
-                { upsert: true }
-            );
-            return ctx.reply("💰 ለማስገባት የሚፈልጉትን መጠን ያስገቡ: (ለመውጣት /cancel)");
-        } catch (err) {
-            console.error("❌ Error starting manual deposit flow:", err);
-            return ctx.reply("🚫 An error occurred. Please try again.");
+            return ctx.scene.enter("manualDeposit");
         }
-    }
 
         // Handle balance callback
         if (data === "balance") {

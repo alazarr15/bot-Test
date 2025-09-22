@@ -1,21 +1,20 @@
 // commands/deposit.js
+
 const User = require("../Model/user");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 
-// Utility: reset all in-progress flows
+// You should define this function or import it if it's already defined elsewhere.
+// For example, if it's in a utils file.
 async function clearAllFlows(telegramId) {
-    await User.findOneAndUpdate(
-        { telegramId },
-        {
-            $set: {
-                withdrawalInProgress: null,
-                transferInProgress: null,
-                registrationInProgress: null,
-                usernameChangeInProgress: null,
-                depositInProgress: ""
-            },
+    await User.findOneAndUpdate({ telegramId }, {
+        $set: {
+            withdrawalInProgress: null,
+            transferInProgress: null,
+            registrationInProgress: null,
+            usernameChangeInProgress: null,
+            depositInProgress: null
         }
-    );
+    });
 }
 
 module.exports = function (bot) {
@@ -32,29 +31,22 @@ module.exports = function (bot) {
             const user = await User.findOne({ telegramId });
 
             if (!user) {
-                return ctx.reply(
-                    "🚫 You must register first to make a deposit. Please click below to register:",
-                    {
-                        reply_markup: {
-                            inline_keyboard: [
-                                [{ text: "🔐 Register", callback_data: "register" }],
-                            ],
-                        },
+                return ctx.reply("🚫 You must register first to make a deposit. Please click below to register:", {
+                    reply_markup: {
+                        inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
                     }
-                );
+                });
             }
 
-            // ✅ Reset all other flows
+            // ✅ CORRECTED: Clear all other in-progress flows before starting this one.
             await clearAllFlows(telegramId);
-
-            // ✅ Start deposit flow
+            
             return ctx.reply("💰 የገንዘብ ማስገቢያ ዘዴ ይምረጡ:", {
                 reply_markup: {
                     inline_keyboard: [
                         [{ text: "Manual", callback_data: "manual_deposit" }],
-                        // You can add "Chapa" here later if needed
-                    ],
-                },
+                    ]
+                }
             });
         } catch (err) {
             if (err && err.msBeforeNext) {
