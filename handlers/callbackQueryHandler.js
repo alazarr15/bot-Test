@@ -300,7 +300,6 @@ if (data.startsWith("withdraw_")) {
 
         if (data === "deposit" || /^deposit_\d+$/.test(data)) {
             try {
-                // ⭐ NEW: Clear any active flows before starting a new one
                 await clearAllFlows(telegramId);
                 await ctx.answerCbQuery();
                 const user = await User.findOne({ telegramId });
@@ -311,7 +310,10 @@ if (data.startsWith("withdraw_")) {
                         }
                     });
                 }
-
+                
+                // ⭐ NEW: Set the depositInProgress flag
+                await User.findOneAndUpdate({ telegramId }, { $set: { depositInProgress: { active: true, step: 'start' } } });
+                
                 return ctx.reply("💰 የገንዘብ ማስገቢያ ዘዴ ይምረጡ:", {
                     reply_markup: {
                         inline_keyboard: [
@@ -324,6 +326,7 @@ if (data.startsWith("withdraw_")) {
                 return ctx.reply("🚫 An error occurred. Please try again.");
             }
         }
+
 
 
         // Handle 'manual_deposit' callback

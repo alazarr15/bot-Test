@@ -45,6 +45,10 @@ const userSchema = new mongoose.Schema({
     type: Object,
     default: null,
   },
+   depositInProgress: { 
+        type: Object,
+        default: null,
+    },
   usernameChangeInProgress: {
     type: Object,
     default: null,
