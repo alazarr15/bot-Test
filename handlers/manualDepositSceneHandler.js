@@ -1,32 +1,31 @@
 // handlers/manualDepositSceneHandler.js
 
-// Import necessary Telegraf modules for scene management
 const { Telegraf, Scenes, session } = require("telegraf");
-const User = require("../Model/user"); // Import your User model
-const SmsMessage = require("../Model/SmsMessage"); // Import your SMS message model
-const Deposit = require("../Model/Deposit"); // ✅ Import your final Deposit model
+const User = require("../Model/user");
+const SmsMessage = require("../Model/SmsMessage");
+const Deposit = require("../Model/Deposit");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 
 // =================================================================
-// ➡️ Define the Manual Deposit Scene (Wizard Scene)
+// ➡️ Manual Deposit Wizard Scene
 // =================================================================
-
 const manualDepositScene = new Scenes.WizardScene(
   "manualDeposit",
 
   // Step 1: Ask for deposit amount
   async (ctx) => {
-    if (ctx.message && (ctx.message.text === "/cancel" || ctx.message.text.toLowerCase() === "cancel")) {
+    if (ctx.message?.text?.toLowerCase() === "/cancel" || ctx.message?.text?.toLowerCase() === "cancel") {
       await ctx.reply("❌ Manual deposit cancelled.");
       return ctx.scene.leave();
     }
+
     try {
       await userRateLimiter.consume(ctx.from.id);
       await globalRateLimiter.consume("global");
       await ctx.reply("💰 ለማስገባት የሚፈልጉትን መጠን ያስገቡ: (ለመውጣት /cancel )");
       return ctx.wizard.next();
     } catch (err) {
-      if (err && err.msBeforeNext) {
+      if (err?.msBeforeNext) {
         await ctx.reply("⚠️ Too many requests. Please wait a moment before trying again.");
       } else {
         console.error("❌ Error entering manualDepositScene:", err.message);
@@ -36,9 +35,9 @@ const manualDepositScene = new Scenes.WizardScene(
     }
   },
 
-  // Step 2: Receive amount and save to DB
+  // Step 2: Receive amount and save
   async (ctx) => {
-    if (ctx.message && (ctx.message.text === "/cancel" || ctx.message.text.toLowerCase() === "cancel")) {
+    if (ctx.message?.text?.toLowerCase() === "/cancel" || ctx.message?.text?.toLowerCase() === "cancel") {
       await ctx.reply("❌ Manual deposit cancelled.");
       return ctx.scene.leave();
     }
@@ -49,11 +48,11 @@ const manualDepositScene = new Scenes.WizardScene(
       return;
     }
 
-    // Save deposit amount to DB
+    // Merge deposit amount into depositInProgress
     await User.findOneAndUpdate(
       { telegramId: ctx.from.id },
-      { depositInProgress: { amount } },
-      { upsert: true }
+      { $set: { "depositInProgress.amount": amount } },
+      { upsert: true, new: true }
     );
 
     await ctx.reply(
@@ -74,28 +73,27 @@ const manualDepositScene = new Scenes.WizardScene(
   // Step 3: Handle payment selection
   async (ctx) => {
     if (!ctx.callbackQuery || !ctx.callbackQuery.data.startsWith("payment_")) {
-      await ctx.reply(
-        "Please use the buttons provided to select a payment method. (Type /cancel to exit)"
-      );
+      await ctx.answerCbQuery("Please use the buttons provided.");
+      await ctx.reply("⚠️ Please select a payment method using the buttons. (Type /cancel to exit)");
       return;
     }
 
     const method = ctx.callbackQuery.data;
+    await ctx.answerCbQuery();
 
-    // Fetch deposit amount from DB
     const user = await User.findOne({ telegramId: ctx.from.id });
     if (!user?.depositInProgress?.amount) {
-      await ctx.reply("No deposit amount found. Please start a new deposit using /deposit.");
+      await ctx.reply("❌ No deposit amount found. Please start a new deposit using /deposit.");
       return ctx.scene.leave();
     }
 
     const amount = user.depositInProgress.amount;
-    let instructions = "";
     let depositType = "";
+    let instructions = "";
 
-    if (method === "payment_cbe") {
-    depositType = "CBE";
-    instructions = `
+     if (method === "payment_cbe") {
+  depositType = "CBE";
+  instructions = `
 የኢትዮጵያ ንግድ ባንክ አካውንት
 
 \`\`\`
@@ -121,46 +119,45 @@ const manualDepositScene = new Scenes.WizardScene(
 
 👉 የከፈለችሁበትን አጭር የጹሁፍ መልክት (sms) ወይም "FT" ብሎ የሚጀምረውን የትራንዛክሽን ቁጥር እዚ ላይ ያስገቡ 👇👇👇
 `;
-  } else if (method === "payment_telebirr") {
-    depositType = "Telebirr";
-    instructions = `
-📱 የቴሌብር አካውንት
+    } else if (method === "payment_telebirr") {
+      depositType = "Telebirr";
+      instructions = `
+    📱 የቴሌብር አካውንት
 
-\`\`\`
-0930534417
-\`\`\`
+    \`\`\`
+    0930534417
+    \`\`\`
 
-\`\`\`
-1. ከላይ ባለው የቴሌብር አካውንት ${amount} ብር ያስገቡ
+    \`\`\`
+    1. ከላይ ባለው የቴሌብር አካውንት ${amount} ብር ያስገቡ
 
-2. የምትልኩት የገንዘብ መጠን እና እዚ ላይ እንዲሞላልዎ የምታስገቡት የብር መጠን ተመሳሳይ መሆኑን እርግጠኛ ይሁኑ
+    2. የምትልኩት የገንዘብ መጠን እና እዚ ላይ እንዲሞላልዎ የምታስገቡት የብር መጠን ተመሳሳይ መሆኑን እርግጠኛ ይሁኑ
 
-3. ብሩን ስትልኩ የከፈላችሁበትን መረጃ የያዘ አጭር የጹሁፍ መልክት (sms) ከቴሌብር ይደርሳችኋል
+    3. ብሩን ስትልኩ የከፈላችሁበትን መረጃ የያዘ አጭር የጹሁፍ መልክት (sms) ከቴሌብር ይደርሳችኋል
 
-4. የደረሳችሁን አጭር የጹሁፍ መልክት (sms) ሙሉውን ኮፒ (copy) በማረግ ከታች ባለው የቴሌግራም የጹሁፍ ማስገቢያው ላይ ፔስት (paste) በማረግ ይላኩት
-\`\`\`
+    4. የደረሳችሁን አጭር የጹሁፍ መልክት (sms) ሙሉውን ኮፒ (copy) በማረግ ከታች ባለው የቴሌግራም የጹሁፍ ማስገቢያው ላይ ፔስት (paste) በማረግ ይላኩት
+    \`\`\`
 
-🔔 ማሳሰቢያ:
-- የክፍያ ችግር ካለ፣ [@luckybingos] ኤጀንቱን ማዋራት ይችላሉ፡፡ ለማቋረጥ /cancel
+    🔔 ማሳሰቢያ:
+    - የክፍያ ችግር ካለ፣ [@luckybingos] ኤጀንቱን ማዋራት ይችላሉ፡፡ ለማቋረጥ /cancel
 
-👉 የከፈለችሁበትን አጭር የጹሁፍ መልክት (sms) እዚ ላይ ያስገቡ 👇👇👇
-`;
-  }
-    // Save deposit method to DB
+    👉 የከፈለችሁበትን አጭር የጹሁፍ መልክት (sms) እዚ ላይ ያስገቡ 👇👇👇
+    `;
+    }
+    // Merge deposit method
     await User.findOneAndUpdate(
       { telegramId: ctx.from.id },
-      { depositInProgress: { amount, method: depositType } }
+      { $set: { "depositInProgress.method": depositType } },
+      { new: true }
     );
 
-    await ctx.answerCbQuery();
     await ctx.reply(instructions, { parse_mode: "Markdown" });
-
     return ctx.wizard.next();
   },
 
-  // Step 4: Receive confirmation message and verify deposit
+  // Step 4: Verify confirmation message
   async (ctx) => {
-    if (ctx.message && (ctx.message.text === "/cancel" || ctx.message.text.toLowerCase() === "cancel")) {
+    if (ctx.message?.text?.toLowerCase() === "/cancel" || ctx.message?.text?.toLowerCase() === "cancel") {
       await ctx.reply("❌ Deposit cancelled.");
       return ctx.scene.leave();
     }
@@ -168,9 +165,9 @@ const manualDepositScene = new Scenes.WizardScene(
     const userMessage = ctx.message?.text || ctx.message?.caption;
     const telegramId = ctx.from.id;
 
-    // Fetch deposit info from DB
     const user = await User.findOne({ telegramId });
     const depositInProgress = user?.depositInProgress;
+
     if (!user || !depositInProgress?.amount || !depositInProgress?.method) {
       await ctx.reply("❌ No deposit in progress. Start a new deposit using /deposit.");
       return ctx.scene.leave();
@@ -180,66 +177,57 @@ const manualDepositScene = new Scenes.WizardScene(
     const depositType = depositInProgress.method;
 
     if (!userMessage) {
-      await ctx.reply("❌ Please try forwarding the message again. (Type /cancel to exit)");
+      await ctx.reply("❌ Please forward the SMS message correctly. (Type /cancel to exit)");
       return;
     }
 
     try {
-     // Match CBE transaction IDs: FT followed by 10 alphanumeric, allow optional spaces or punctuation
-const cbeRegex = /FT\s*([A-Z0-9]{10})/i;
-
-// Match Telebirr transaction IDs: allow multiple possible prefixes and optional punctuation, also trim spaces
-const telebirrRegex = /(?:transaction\s*number\s*is|የሂሳብ\s*እንቅስቃሴ\s*ቁጥር|Lakkoofsi\s*sochii\s*maallaqaa\s*keessan|ቁፅሪ\s*ሒሳብ\s*ዝተንቀሳቀሰ|lambarka\s*hawulgalkaaguna\s*waa)[^\w]*([A-Z0-9]{10})/i;
+      // Regex for transaction IDs
+      const cbeRegex = /FT\s*([A-Z0-9]{10})/i;
+      const telebirrRegex = /(?:transaction\s*number\s*is|የሂሳብ\s*እንቅስቃሴ\s*ቁጥር|Txn\s*ID|Reference\s*No)[^\w]*([A-Z0-9]{10})/i;
 
       let transactionId = null;
-      const cbeMatch = userMessage.match(cbeRegex);
-      const telebirrMatch = userMessage.match(telebirrRegex);
-      if (cbeMatch && cbeMatch[1]) transactionId = cbeMatch[1];
-      else if (telebirrMatch && telebirrMatch[1]) transactionId = telebirrMatch[1];
+      if (cbeRegex.test(userMessage)) transactionId = userMessage.match(cbeRegex)[1];
+      else if (telebirrRegex.test(userMessage)) transactionId = userMessage.match(telebirrRegex)[1];
 
       if (!transactionId) {
-        await ctx.reply(
-          "🚫 Invalid confirmation message. Please ensure it is the original CBE/Telebirr message. (Type /cancel to exit)"
-        );
+        await ctx.reply("🚫 Invalid message. Ensure it is the original CBE/Telebirr SMS. (Type /cancel to exit)");
         return ctx.scene.leave();
       }
 
+      // Find matching SMS
       const matchingSms = await SmsMessage.findOne({
         status: "pending",
-        $and: [
-          { message: { $regex: new RegExp(transactionId, "i") } },
-          { message: { $regex: new RegExp(claimedAmount.toFixed(2).replace('.', '\\.'), "i") } }
-        ]
+        message: { $regex: new RegExp(transactionId, "i") },
+        message: { $regex: new RegExp(claimedAmount.toFixed(2).replace('.', '\\.'), "i") },
       });
 
       if (!matchingSms) {
-        await ctx.reply(
-          "🚫 No matching deposit found. Please make sure you forwarded the correct message. (Type /cancel to exit)"
-        );
+        await ctx.reply("🚫 No matching deposit found. Ensure you forwarded the correct message. (Type /cancel to exit)");
         return ctx.scene.leave();
       }
 
       const balanceBefore = user.balance;
       const newBalance = balanceBefore + claimedAmount;
 
-      // Save deposit record
+      // Save deposit
       await Deposit.create({
         userId: user._id,
         telegramId: user.telegramId,
         amount: claimedAmount,
         method: depositType,
-        status: 'approved',
-        transactionId: transactionId,
+        status: "approved",
+        transactionId,
         smsMessageId: matchingSms._id,
-        balanceBefore: balanceBefore,
+        balanceBefore,
         balanceAfter: newBalance,
       });
 
-      // Mark SMS as processed
+      // Mark SMS processed
       matchingSms.status = "processed";
       await matchingSms.save();
 
-      // Update user balance and remove depositInProgress
+      // Update user
       const updatedUser = await User.findOneAndUpdate(
         { telegramId },
         { balance: newBalance, $unset: { depositInProgress: "" } },
@@ -247,16 +235,16 @@ const telebirrRegex = /(?:transaction\s*number\s*is|የሂሳብ\s*እንቅስ�
       );
 
       await ctx.reply(
-        `✅ Your deposit of ${claimedAmount} ETB has been successfully approved! Your new balance: *${updatedUser.balance} ETB*.`,
-        { parse_mode: 'Markdown' }
+        `✅ Your deposit of ${claimedAmount} ETB has been approved! New balance: *${updatedUser.balance} ETB*`,
+        { parse_mode: "Markdown" }
       );
 
     } catch (error) {
       if (error.code === 11000) {
         await ctx.reply("🚫 This transaction has already been processed.");
       } else {
-        console.error("❌ Error processing manual deposit message:", error);
-        await ctx.reply("🚫 An error occurred while processing your request. Please try again or contact support.");
+        console.error("❌ Error processing manual deposit:", error);
+        await ctx.reply("🚫 An error occurred while processing your deposit. Please try again.");
       }
     }
 
@@ -264,11 +252,12 @@ const telebirrRegex = /(?:transaction\s*number\s*is|የሂሳብ\s*እንቅስ�
   }
 );
 
-// Create a stage to manage the scenes
+// =================================================================
+// Stage and middleware
+// =================================================================
 const stage = new Scenes.Stage([manualDepositScene]);
 
-// Export a function that attaches the session and stage middleware to the bot.
-module.exports = function (bot) {
+module.exports = (bot) => {
   bot.use(session());
   bot.use(stage.middleware());
 };
