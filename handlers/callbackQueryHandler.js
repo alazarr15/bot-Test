@@ -195,6 +195,20 @@ if (data.startsWith("withdraw_")) {
             const { amount, bank_code, account_number } = userState.data;
 
             try {
+
+            // ⭐ ADDED DEDUCTION LOGIC HERE ⭐
+                const updatedUser = await User.findOneAndUpdate(
+                    { telegramId, balance: { $gte: amount } },
+                    { $inc: { balance: -amount } },
+                    { new: true }
+                );
+
+                if (!updatedUser) {
+                    // If the balance deduction fails, respond and cancel the flow
+                    await User.updateOne({ telegramId }, { $unset: { withdrawalInProgress: 1 } });
+                    return ctx.editMessageText("🚫 Failed to process your request. Your balance may have changed or is insufficient. Please try again.");
+                }
+                // ⭐ END OF DEDUCTION LOGIC ⭐
                 await ctx.editMessageText("⏳ Your withdrawal is in the queue. We will notify you upon completion. To cancel, type /cancel.");
 
                 const withdrawal = new Withdrawal({
