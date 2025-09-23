@@ -5,34 +5,16 @@ const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 
 // You should define this function or import it if it's already defined elsewhere.
 // For example, if it's in a utils file.
-async function clearAllFlows(ctx) {
-    const telegramId = ctx.from.id;
-
-    // 1. Clear DB states
-    await User.findOneAndUpdate(
-        { telegramId },
-        {
-            $set: {
-                withdrawalInProgress: null,
-                transferInProgress: null,
-                registrationInProgress: null,
-                usernameChangeInProgress: null,
-            },
+async function clearAllFlows(telegramId) {
+    await User.findOneAndUpdate({ telegramId }, {
+        $set: {
+            withdrawalInProgress: null,
+            transferInProgress: null,
+            registrationInProgress: null,
+            usernameChangeInProgress: null,
+            depositInProgress: null
         }
-    );
-
-    // 2. Exit wizard if user is stuck in one
-    if (ctx.scene && ctx.scene.current) {
-        await ctx.scene.leave();
-    }
-
-    // 3. Reset session scratchpad if exists
-    if (ctx.session) {
-        ctx.session.depositInProgress = null;
-        if (ctx.wizard) {
-            ctx.wizard.state = {};
-        }
-    }
+    });
 }
 
 module.exports = function (bot) {
