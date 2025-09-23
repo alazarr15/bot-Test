@@ -1,73 +1,35 @@
 const User = require("../Model/user");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 
-// Import or define clearAllFlows
-async function clearAllFlows(ctx) {
-    const telegramId = ctx.from.id;
-
-    // 1. Clear DB states
-    await User.findOneAndUpdate(
-        { telegramId },
-        {
-            $set: {
-                withdrawalInProgress: null,
-                transferInProgress: null,
-                registrationInProgress: null,
-                usernameChangeInProgress: null,
-            },
-        }
-    );
-
-    // 2. Exit wizard if user is stuck in one
-    if (ctx.scene && ctx.scene.current) {
-        await ctx.scene.leave();
-    }
-
-    // 3. Reset session scratchpad if exists
-    if (ctx.session) {
-        ctx.session.depositInProgress = null;
-        if (ctx.wizard) {
-            ctx.wizard.state = {};
-        }
-    }
-}
-
 module.exports = function (bot) {
   bot.command("balance", async (ctx) => {
     const telegramId = ctx.from.id;
 
     try {
-      // ✅ Apply rate limits
+      // ✅ Rate limit: 1 request per user
       await userRateLimiter.consume(telegramId);
+
+      // ✅ Rate limit: 200 requests globally
       await globalRateLimiter.consume("global");
-
-      // ✅ Clear any in-progress flows before showing balance
-      await clearAllFlows(telegramId);
-
       const user = await User.findOne({ telegramId });
 
       if (!user) {
-        return ctx.reply(
-          "🚫 You must register first to check your balance. Please click below to register:",
-          {
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: "🔐 Register", callback_data: "register" }],
-              ],
-            },
+        return ctx.reply("🚫 You must register first to check your balance. Please click below to register:", {
+          reply_markup: {
+            inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
           }
-        );
+        });
       }
 
-      const withdrawable = user.balance ?? 0;
-      const bonus = user.bonus_balance ?? 0;
+      // ⭐ New: Display both balances
+      return ctx.reply(`💰 **Your Balances:**
+- **Withdrawable Balance:** *${user.balance} Birr*
+- **Bonus Balance:** *${user.bonus_balance || 0} Birr*`, {
+        parse_mode: "Markdown"
+      });
 
-      return ctx.reply(
-        `💰 **Your Balances:**\n- **Withdrawable Balance:** *${withdrawable} Birr*\n- **Bonus Balance:** *${bonus} Birr*`,
-        { parse_mode: "Markdown" }
-      );
     } catch (error) {
-      if (error?.msBeforeNext || error?.name === "RateLimiterRes") {
+      if (error && error.msBeforeNext) {
         return ctx.reply("⚠️ You're doing that too fast. Please wait a second.");
       }
 
