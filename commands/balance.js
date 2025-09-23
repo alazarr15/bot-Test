@@ -1,35 +1,57 @@
 const User = require("../Model/user");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 
+// Import or define clearAllFlows
+async function clearAllFlows(telegramId) {
+  await User.findOneAndUpdate(
+    { telegramId },
+    {
+      $set: {
+        withdrawalInProgress: null,
+        transferInProgress: null,
+        registrationInProgress: null,
+        usernameChangeInProgress: null,
+      },
+    }
+  );
+}
+
 module.exports = function (bot) {
   bot.command("balance", async (ctx) => {
     const telegramId = ctx.from.id;
 
     try {
-      // ✅ Rate limit: 1 request per user
+      // ✅ Apply rate limits
       await userRateLimiter.consume(telegramId);
-
-      // ✅ Rate limit: 200 requests globally
       await globalRateLimiter.consume("global");
+
+      // ✅ Clear any in-progress flows before showing balance
+      await clearAllFlows(telegramId);
+
       const user = await User.findOne({ telegramId });
 
       if (!user) {
-        return ctx.reply("🚫 You must register first to check your balance. Please click below to register:", {
-          reply_markup: {
-            inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
+        return ctx.reply(
+          "🚫 You must register first to check your balance. Please click below to register:",
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "🔐 Register", callback_data: "register" }],
+              ],
+            },
           }
-        });
+        );
       }
 
-      // ⭐ New: Display both balances
-      return ctx.reply(`💰 **Your Balances:**
-- **Withdrawable Balance:** *${user.balance} Birr*
-- **Bonus Balance:** *${user.bonus_balance || 0} Birr*`, {
-        parse_mode: "Markdown"
-      });
+      const withdrawable = user.balance ?? 0;
+      const bonus = user.bonus_balance ?? 0;
 
+      return ctx.reply(
+        `💰 **Your Balances:**\n- **Withdrawable Balance:** *${withdrawable} Birr*\n- **Bonus Balance:** *${bonus} Birr*`,
+        { parse_mode: "Markdown" }
+      );
     } catch (error) {
-      if (error && error.msBeforeNext) {
+      if (error?.msBeforeNext || error?.name === "RateLimiterRes") {
         return ctx.reply("⚠️ You're doing that too fast. Please wait a second.");
       }
 

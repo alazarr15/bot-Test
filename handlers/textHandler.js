@@ -47,46 +47,59 @@ module.exports = function (bot) {
             // ⭐ Fetch the user ONCE at the beginning of the handler
             const user = await User.findOne({ telegramId });
 
-          
 if (message === "/cancel" || message === "cancel") {
-    if (ctx.scene && ctx.scene.current && ctx.scene.current.id) {
+    // 1. If in a wizard/scene → leave
+    if (ctx.scene && ctx.scene.current) {
+        await ctx.scene.leave();
         await ctx.reply("❌ Operation cancelled. You have exited the current flow.");
-        return ctx.scene.leave(); // Explicitly exit the active scene
+        return;
     }
-    
-    
-    // Add this new block to handle the depositInProgress state
-  else if (user?.depositInProgress) {
-    await User.updateOne(
-        { telegramId },
-        {
-            $unset: {
-                depositInProgress: 1,
-                depositStep: 1,
-                depositTempAmount: 1,
-                depositTempMethod: 1,
-            },
-        }
-    );
-    await ctx.reply("❌ Deposit request has been cancelled.");
-    if (user) return ctx.reply("🔄 Main menu:", buildMainMenu(user));
-    return;
-}
 
-    
-    // The rest of your existing code goes here...
-    else if (user?.usernameChangeInProgress) {
-        await User.updateOne({ telegramId }, { $set: { usernameChangeInProgress: false } });
+    // 2. Cancel deposit if active in DB
+    if (user?.depositInProgress) {
+        await User.updateOne(
+            { telegramId },
+            {
+                $set: {
+                    depositInProgress: { status: null, amount: null, method: null }
+                }
+            }
+        );
+
+        // Also reset session scratch if it exists
+        if (ctx.session) {
+            ctx.session.depositInProgress = null;
+            if (ctx.wizard) ctx.wizard.state = {};
+        }
+
+        await ctx.reply("❌ Deposit request has been cancelled.");
+        if (user) return ctx.reply("🔄 Main menu:", buildMainMenu(user));
+        return;
+    }
+
+    // 3. Cancel username change
+    if (user?.usernameChangeInProgress) {
+        await User.updateOne(
+            { telegramId },
+            { $set: { usernameChangeInProgress: false } }
+        );
         await ctx.reply("❌ Username change cancelled. You can start again with /change_username.");
         if (user) return ctx.reply("🔄 Main menu:", buildMainMenu(user));
         return;
-    } else if (user?.transferInProgress) {
-        await User.updateOne({ telegramId }, { $unset: { transferInProgress: 1 } });
+    }
+
+    // 4. Cancel transfer
+    if (user?.transferInProgress) {
+        await User.updateOne(
+            { telegramId },
+            { $unset: { transferInProgress: 1 } }
+        );
         await ctx.reply("❌ Transfer cancelled. Returning to the main menu.", buildMainMenu(user));
         return;
-    } else {
-        return ctx.reply("👍 There is no active operation to cancel.");
     }
+
+    // 5. Nothing active
+    return ctx.reply("👍 There is no active operation to cancel.");
 }
 
             // ⭐ FIX 1: Use the `user` variable consistently.
