@@ -111,7 +111,7 @@ const manualDepositScene = new Scenes.WizardScene(
     📱 የቴሌብር አካውንት
 
     \`\`\`
-    0930534417
+    0989492737
     \`\`\`
 
     \`\`\`
