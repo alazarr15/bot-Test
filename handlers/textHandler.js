@@ -103,7 +103,7 @@ if (user && depositState) {
 
         // Validate
         if (isNaN(roundedAmount) || roundedAmount < 30 || roundedAmount > 500) {
-            return ctx.reply("🚫 የተሳሳተ መጠን። እባክዎ ትክክለኛ ቁጥር ያስገቡ። እንዲሁም ማስገባት የሚችሉት መጠን ከ 30 እስከ 500 ብር ብቻ ነው፡፡ (ለማቋረጥ /cancel ይንኩ)");
+            return ctx.reply("🚫 የተሳሳተ መጠን። ማስገባት የሚችሉት መጠን ከ 30 እስከ 500 ብር ብቻ ነው፡፡ (ለማቋረጥ /cancel ይንኩ)");
         }
 
         // Update state to await payment method selection with the rounded amount
