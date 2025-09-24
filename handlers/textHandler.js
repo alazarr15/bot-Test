@@ -116,8 +116,8 @@ if (user && depositState) {
     // Handle amount input from the user
     if (depositState.step === "getAmount") {
         const amount = parseFloat(messageRaw);
-        if (isNaN(amount) || amount <= 0) {
-            return ctx.reply("🚫 የተሳሳተ መጠን። እባክዎ ትክክለኛ ቁጥር ያስገቡ (ለምሳሌ፦ 100)። (ለመውጣት /cancel ይጻፉ)");
+         if (isNaN(amount) || amount < 30 || amount > 500) {
+            return ctx.reply("🚫 የተሳሳተ መጠን። እባክዎ ትክክለኛ ቁጥር ያስገቡ። እንዲሁም ማስገባት የሚችሉት መጠን ከ 30 እስከ 500 ብር ብቻ ነው፡፡ (ለማቋረጥ /cancel ይንኩ)");
         }
         // Update state to await payment method selection
         await User.updateOne(
@@ -355,8 +355,8 @@ if (depositState.step === "awaitingSMS") {
 
                     amount = Math.round(amount * 100) / 100; // Round to 2 decimals
 
-                    if (amount < 10 || amount > 1000) {
-                        return ctx.reply("🚫 Transfer amount must be between 10 and 1000 Birr.\n\nTo cancel, type /cancel.");
+                    if (amount < 30 || amount > 1000) {
+                        return ctx.reply("🚫 Transfer amount must be between 30 and 1000 Birr.\n\nTo cancel, type /cancel.");
                     }
 
                     const session = await mongoose.startSession();

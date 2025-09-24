@@ -27,7 +27,8 @@ const opts = {
             "appium:appPackage": "cn.tydic.ethiopay",
             "appium:appActivity": "com.huawei.module_basic_ui.splash.LauncherActivity",
             "appium:noReset": true,
-            "appium:newCommandTimeout": 3600
+            "appium:newCommandTimeout": 3600,
+            "appium:adbExecTimeout": 60000
         }
     }
 };
