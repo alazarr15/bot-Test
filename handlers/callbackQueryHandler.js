@@ -300,88 +300,62 @@ if (data.startsWith("withdraw_")) {
 
         }
 
-        if (data === "deposit" || /^deposit_\d+$/.test(data)) {
-            try {
-                // ⭐ NEW: Clear any active flows before starting a new one
-                await clearAllFlows(telegramId);
-                await ctx.answerCbQuery();
-                const user = await User.findOne({ telegramId });
-                if (!user) {
-                    return ctx.reply("🚫 You must register first to make a deposit.", {
-                        reply_markup: {
-                            inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
-                        }
-                    });
-                }
+      // Handle deposit callbacks
+if (data === "deposit" || /^deposit_\d+$/.test(data)) {
+    await clearAllFlows(telegramId); // ✅ Clear any active flows first
+    await ctx.answerCbQuery();
 
-                return ctx.reply("💰 የገንዘብ ማስገቢያ ዘዴ ይምረጡ:", {
-                    reply_markup: {
-                        inline_keyboard: [
-                            [{ text: "Manual", callback_data: "manual_deposit" }]
-                        ]
-                    }
-                });
-            } catch (err) {
-                console.error("❌ Error in deposit callback handler:", err.message);
-                return ctx.reply("🚫 An error occurred. Please try again.");
-            }
-        }
-
-
-        // Handle 'manual_deposit' callback
-        if (data === "manual_deposit") {
-          const user = await User.findOne({ telegramId });
-           await ctx.answerCbQuery();
-
-            if (!user) {
-        return ctx.answerCbQuery("🚫 Please register first.");
+    const user = await User.findOne({ telegramId });
+    if (!user) {
+        return ctx.reply("🚫 You must register first to make a deposit.", {
+            reply_markup: { inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]] }
+        });
     }
-    // Set the deposit state and prompt for amount
-    await User.updateOne({ telegramId }, { $set: { depositInProgress: { step: "getAmount" } } });
-    await ctx.reply("💵 Please enter the amount you wish to deposit: (Type /cancel to exit)");
-    return ctx.answerCbQuery();
+
+    // Prompt deposit method
+    return ctx.reply("💰 የገንዘብ ማስገቢያ ዘዴ ይምረጡ:", {
+        reply_markup: {
+            inline_keyboard: [
+                [{ text: "Manual", callback_data: "manual_deposit" }]
+            ]
         }
+    });
+}
 
+// Handle manual deposit selection
+if (data === "manual_deposit") {
+    await ctx.answerCbQuery();
+    const user = await User.findOne({ telegramId });
+    if (!user) return ctx.answerCbQuery("🚫 Please register first.");
 
-      // ===============================
-// Handle Payment Method Selection
-// ===============================
+    // Set deposit state to get amount
+    await User.updateOne({ telegramId }, { $set: { depositInProgress: { step: "getAmount" } } });
+    return ctx.reply("💵 Please enter the amount you wish to deposit: (Type /cancel to exit)");
+}
+
+// Handle payment method selection (CBE or Telebirr)
 if (data === "payment_cbe" || data === "payment_telebirr") {
     const user = await User.findOne({ telegramId });
     const depositState = user?.depositInProgress;
 
-    // 🚀 FIX 1: Allow both "getAmount" and "selectMethod"
-    if (!user || !depositState || !["selectMethod", "getAmount"].includes(depositState.step)) {
-        return ctx.answerCbQuery("🚫 This operation is not currently available. Please start a new deposit.");
-    }
+  // Strict validation for deposit flow
+if (!user || !user.depositInProgress) {
+    return ctx.answerCbQuery("🚫 No active deposit. Please start a new deposit.");
+}
 
-    // 🚀 FIX 2: Ensure amount is entered before choosing method
-    if (!depositState.amount) {
-        return ctx.reply("🚫 Please enter a valid amount first before choosing a payment method.");
-    }
+// Only allow selection if user already entered amount
+if (depositState.step !== "selectMethod" || !depositState.amount) {
+    return ctx.answerCbQuery("🚫 You must enter a valid amount before selecting a payment method.");
+}
 
-    // Determine deposit type
-    const depositType = data === "payment_cbe" ? "CBE" : "Telebirr";
+
+    let depositType = "";
+    let instructions = "";
     const amount = depositState.amount;
 
-    await ctx.answerCbQuery("Proceeding to deposit verification.");
-
-    // 🚀 FIX 3: Go straight to awaitingSMS with depositType
-    await User.updateOne(
-        { telegramId },
-        {
-            $set: {
-                "depositInProgress.depositType": depositType,
-                "depositInProgress.step": "awaitingSMS"
-            }
-        }
-    );
-
-    // Provide deposit instructions
-    let instructions = "";
-        if (method === "payment_cbe") {
-  depositType = "CBE";
-  instructions = `
+    if (data === "payment_cbe") {
+        depositType = "CBE";
+        instructions = `
 የኢትዮጵያ ንግድ ባንክ አካውንት
 
 \`\`\`
@@ -406,11 +380,11 @@ if (data === "payment_cbe" || data === "payment_telebirr") {
 - የክፍያ ችግር ካለ፣ [@luckybingos] ኤጀንቱን ማዋራት ይችላሉ፡፡  ለማቋረጥ /cancel
 
 👉 የከፈለችሁበትን አጭር የጹሁፍ መልክት (sms) ወይም "FT" ብሎ የሚጀምረውን የትራንዛክሽን ቁጥር እዚ ላይ ያስገቡ 👇👇👇
-`;
-    } else if (method === "payment_telebirr") {
-      depositType = "Telebirr";
-      instructions = `
-    📱 የቴሌብር አካውንት
+        `;
+    } else if (data === "payment_telebirr") {
+        depositType = "Telebirr";
+        instructions = `
+ 📱 የቴሌብር አካውንት
 
 \`\`\`
 0989492737
@@ -430,14 +404,20 @@ if (data === "payment_cbe" || data === "payment_telebirr") {
 - የክፍያ ችግር ካለ፣ [@luckybingos] ኤጀንቱን ማዋራት ይችላሉ፡፡ ለማቋረጥ /cancel
 
 👉 የከፈለችሁበትን አጭር የጹሁፍ መልክት (sms) እዚ ላይ ያስገቡ 👇👇👇`;
+        
     }
+
+    // Update deposit state and move to awaitingSMS
+    await User.updateOne(
+        { telegramId },
+        { $set: { "depositInProgress.depositType": depositType, "depositInProgress.step": "awaitingSMS" } }
+    );
 
     return ctx.reply(
         `✅ Selected ${depositType}. Amount: ${amount} ETB.\n\n${instructions}`,
         { parse_mode: "Markdown" }
     );
 }
-
 
 
         // Handle balance callback

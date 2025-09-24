@@ -94,18 +94,25 @@ if (message === "/cancel" || message === "cancel") {
 // From textHandler_v2.js
 const depositState = user?.depositInProgress;
 if (user && depositState) {
-    // Handle amount input from the user
     if (depositState.step === "getAmount") {
-        const amount = parseFloat(messageRaw);
-         if (isNaN(amount) || amount < 30 || amount > 500) {
+        // Remove any non-numeric characters except dot, then parse
+        const amount = parseFloat(messageRaw.replace(/[^0-9.]/g, '').trim());
+
+        // Round to 2 decimal places
+        const roundedAmount = Math.round(amount * 100) / 100;
+
+        // Validate
+        if (isNaN(roundedAmount) || roundedAmount < 30 || roundedAmount > 500) {
             return ctx.reply("🚫 የተሳሳተ መጠን። እባክዎ ትክክለኛ ቁጥር ያስገቡ። እንዲሁም ማስገባት የሚችሉት መጠን ከ 30 እስከ 500 ብር ብቻ ነው፡፡ (ለማቋረጥ /cancel ይንኩ)");
         }
-        // Update state to await payment method selection
+
+        // Update state to await payment method selection with the rounded amount
         await User.updateOne(
             { telegramId },
-            { $set: { "depositInProgress.amount": amount, "depositInProgress.step": "selectMethod" } }
+            { $set: { "depositInProgress.amount": roundedAmount, "depositInProgress.step": "selectMethod" } }
         );
-        return ctx.reply(`💰 የሚፈልጉት ${amount} ብር ለማስገባት ነው። እባክዎ የክፍያ ዘዴዎን ይምረጡ: (ለመውጣት /cancel ይጻፉ)`, {
+
+        return ctx.reply(`💰 የሚፈልጉት ${roundedAmount} ብር ለማስገባት ነው። እባክዎ የክፍያ ዘዴዎን ይምረጡ: (ለመውጣት /cancel ይጻፉ)`, {
             reply_markup: {
                 inline_keyboard: [
                     [{ text: "CBE to CBE", callback_data: "payment_cbe" }],
