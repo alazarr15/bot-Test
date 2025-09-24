@@ -2,7 +2,7 @@
 const User = require("../Model/user");
 const Withdrawal = require("../Model/withdrawal");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
-
+const { clearAllFlows } = require("../utils/flowUtils");
 const { processTelebirrWithdrawal } = require('./telebirrWorker.js');
 const { getDriver, resetDriver } = require('./appiumService.js'); // 👈 Using the new service
 
@@ -101,25 +101,6 @@ const processQueue = (bot) => {
 };
 module.exports = function (bot) {
     processQueue(bot);
-
-    // ⭐ NEW: Universal function to clear all active flows
-    async function clearAllFlows(telegramId) {
-        await User.findOneAndUpdate({ telegramId }, {
-            $set: {
-                withdrawalInProgress: null,
-                transferInProgress: null,
-                registrationInProgress: null,
-                usernameChangeInProgress: null,
-                 depositInProgress: {
-          step: null,
-          amount: null,
-          depositType: null,
-          txId: null,
-          timestamp: null
-        }
-            }
-        });
-    }
 
     bot.on("callback_query", async (ctx) => {
         const telegramId = ctx.from.id;
