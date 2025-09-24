@@ -148,7 +148,6 @@ module.exports = function (bot) {
             });
         }
 
-       // ⭐ Handle WITHDRAWAL callbacks
 // ⭐ Handle WITHDRAWAL callbacks
 if (data.startsWith("withdraw_")) {
     const user = await User.findOne({ telegramId }); // 👈 Retrieve the user document
@@ -197,7 +196,7 @@ if (data.startsWith("withdraw_")) {
                     return ctx.editMessageText("🚫 Failed to process your request. Your balance may have changed or is insufficient. Please try again.");
                 }
                 // ⭐ END OF DEDUCTION LOGIC ⭐
-                await ctx.editMessageText("⏳ Your withdrawal is in the queue. We will notify you upon completion. To cancel, type /cancel.");
+                await ctx.editMessageText("⏳ ጥያቄዎ በሄደት ላይ ነው። ሲጠናቀቅ (1–3 ደቂቃ) ውስጥ እናሳውቃለን።",buildMainMenu(user));
 
                 const withdrawal = new Withdrawal({
                     tx_ref: `TX-${Date.now()}-${telegramId}`,
@@ -330,7 +329,7 @@ if (data === "manual_deposit") {
 
     // Set deposit state to get amount
     await User.updateOne({ telegramId }, { $set: { depositInProgress: { step: "getAmount" } } });
-    return ctx.reply("💵 Please enter the amount you wish to deposit: (Type /cancel to exit)");
+    return ctx.reply("💵 እንዲሞላልዎት የሚፈልጉትን የገንዘብ መጠን ያስገቡ: (ለማቋረጥ /cancel ይንኩ)");
 }
 
 // Handle payment method selection (CBE or Telebirr)
