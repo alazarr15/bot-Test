@@ -343,34 +343,47 @@ if (data.startsWith("withdraw_")) {
 
 
         // From callbackHandler_v2.js
- if (data === "payment_cbe" || data === "payment_telebirr") {
+// From callbackHandler_v2.js
+if (data === "payment_cbe" || data === "payment_telebirr") {
     const user = await User.findOne({ telegramId });
     const depositState = user?.depositInProgress;
 
-    // Re-check state to prevent out-of-flow actions
-    if (!user || !depositState || depositState.step !== "selectMethod") {
+    // 🚀 FIX: Allow both "getAmount" and "selectMethod" states
+    if (!user || !depositState || !["selectMethod", "getAmount"].includes(depositState.step)) {
         return ctx.answerCbQuery("🚫 This operation is not currently available. Please start a new deposit.");
     }
 
-    let depositType = null;
-    if (data === "payment_cbe") {
-        depositType = "CBE";
-    } else if (data === "payment_telebirr") {
-        depositType = "Telebirr";
-    }
+    if (!depositState.amount) {
+    return ctx.reply("🚫 Please enter a valid amount first before choosing a payment method.");
+}
+
+    // Determine deposit type
+    let depositType = data === "payment_cbe" ? "CBE" : "Telebirr";
 
     await ctx.answerCbQuery("Proceeding to deposit verification.");
     
-    // Use the amount that is already in the fetched user object.
     const amount = depositState.amount;
 
-    // Update the state to awaitingSMS and store the deposit type
+    // 🚀 FIX: If still in getAmount, push state forward to selectMethod
+    if (depositState.step === "getAmount") {
+        await User.updateOne(
+            { telegramId },
+            { $set: { "depositInProgress.step": "selectMethod" } }
+        );
+    }
+
+    // Now move to awaitingSMS
     await User.updateOne(
         { telegramId },
-        { $set: { "depositInProgress.depositType": depositType, "depositInProgress.step": "awaitingSMS" } }
+        {
+            $set: {
+                "depositInProgress.depositType": depositType,
+                "depositInProgress.step": "awaitingSMS"
+            }
+        }
     );
 
-    // Provide instructions for the user
+    // Provide instructions
     let instructions = "";
     if (depositType === "CBE") {
         instructions = `የኢትዮጵያ ንግድ ባንክ አካውንት
@@ -397,7 +410,7 @@ if (data.startsWith("withdraw_")) {
 - የክፍያ ችግር ካለ፣ [@luckybingos] ኤጀንቱን ማዋራት ይችላሉ፡፡  ለማቋረጥ /cancel
 
 👉 የከፈለችሁበትን አጭር የጹሁፍ መልክት (sms) ወይም "FT" ብሎ የሚጀምረውን የትራንዛክሽን ቁጥር እዚ ላይ ያስገቡ 👇👇👇`;
-    } else if (depositType === "Telebirr") {
+    } else {
         instructions = ` 📱 የቴሌብር አካውንት
 
 \`\`\`
