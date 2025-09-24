@@ -5,6 +5,7 @@ const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 const { clearAllFlows } = require("../utils/flowUtils");
 const { processTelebirrWithdrawal } = require('./telebirrWorker.js');
 const { getDriver, resetDriver } = require('./appiumService.js'); // 👈 Using the new service
+const { buildMainMenu } = require("../utils/menuMarkup");
 
 const telebirrWithdrawalQueue = [];
 
@@ -342,37 +343,30 @@ if (data.startsWith("withdraw_")) {
         }
 
 
-        // From callbackHandler_v2.js
-// From callbackHandler_v2.js
+      // ===============================
+// Handle Payment Method Selection
+// ===============================
 if (data === "payment_cbe" || data === "payment_telebirr") {
     const user = await User.findOne({ telegramId });
     const depositState = user?.depositInProgress;
 
-    // 🚀 FIX: Allow both "getAmount" and "selectMethod" states
+    // 🚀 FIX 1: Allow both "getAmount" and "selectMethod"
     if (!user || !depositState || !["selectMethod", "getAmount"].includes(depositState.step)) {
         return ctx.answerCbQuery("🚫 This operation is not currently available. Please start a new deposit.");
     }
 
+    // 🚀 FIX 2: Ensure amount is entered before choosing method
     if (!depositState.amount) {
-    return ctx.reply("🚫 Please enter a valid amount first before choosing a payment method.");
-}
-
-    // Determine deposit type
-    let depositType = data === "payment_cbe" ? "CBE" : "Telebirr";
-
-    await ctx.answerCbQuery("Proceeding to deposit verification.");
-    
-    const amount = depositState.amount;
-
-    // 🚀 FIX: If still in getAmount, push state forward to selectMethod
-    if (depositState.step === "getAmount") {
-        await User.updateOne(
-            { telegramId },
-            { $set: { "depositInProgress.step": "selectMethod" } }
-        );
+        return ctx.reply("🚫 Please enter a valid amount first before choosing a payment method.");
     }
 
-    // Now move to awaitingSMS
+    // Determine deposit type
+    const depositType = data === "payment_cbe" ? "CBE" : "Telebirr";
+    const amount = depositState.amount;
+
+    await ctx.answerCbQuery("Proceeding to deposit verification.");
+
+    // 🚀 FIX 3: Go straight to awaitingSMS with depositType
     await User.updateOne(
         { telegramId },
         {
@@ -383,13 +377,14 @@ if (data === "payment_cbe" || data === "payment_telebirr") {
         }
     );
 
-    // Provide instructions
+    // Provide deposit instructions
     let instructions = "";
     if (depositType === "CBE") {
-        instructions = `የኢትዮጵያ ንግድ ባንክ አካውንት
+        instructions = `
+የኢትዮጵያ ንግድ ባንክ አካውንት
 
 \`\`\`
-1000454544246 
+1000454544246
 \`\`\`
 
 \`\`\`
@@ -407,14 +402,15 @@ if (data === "payment_cbe" || data === "payment_telebirr") {
 🔔 ማሳሰቢያ:
 - አጭር የጹሁፍ መልክት (sms) ካልደረሳቹ፣ የከፈላችሁበትን ደረሰኝ ከባንክ በመቀበል በማንኛውም ሰአት ትራንዛክሽን ቁጥሩን ቦቱ ላይ ማስገባት ትችላላቹ
 
-- የክፍያ ችግር ካለ፣ [@luckybingos] ኤጀንቱን ማዋራት ይችላሉ፡፡  ለማቋረጥ /cancel
+- የክፍያ ችግር ካለ፣ [@luckybingos] ኤጀንቱን ማዋራት ይችላሉ፡፡  ለማቋረጥ /cancel
 
 👉 የከፈለችሁበትን አጭር የጹሁፍ መልክት (sms) ወይም "FT" ብሎ የሚጀምረውን የትራንዛክሽን ቁጥር እዚ ላይ ያስገቡ 👇👇👇`;
     } else {
-        instructions = ` 📱 የቴሌብር አካውንት
+        instructions = `
+📱 የቴሌብር አካውንት
 
 \`\`\`
-0930534417
+0989492737
 \`\`\`
 
 \`\`\`
@@ -433,8 +429,12 @@ if (data === "payment_cbe" || data === "payment_telebirr") {
 👉 የከፈለችሁበትን አጭር የጹሁፍ መልክት (sms) እዚ ላይ ያስገቡ 👇👇👇`;
     }
 
-    return ctx.reply(`✅ Selected ${depositType}. Amount: ${amount} ETB.\n\n${instructions}`);
+    return ctx.reply(
+        `✅ Selected ${depositType}. Amount: ${amount} ETB.\n\n${instructions}`,
+        { parse_mode: "Markdown" }
+    );
 }
+
 
 
         // Handle balance callback

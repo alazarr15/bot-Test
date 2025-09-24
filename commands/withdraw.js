@@ -46,9 +46,9 @@ module.exports = function (bot) {
                 createdAt: { $gte: today }
             });
             
-            const MAX_DAILY_WITHDRAWALS = 2;
+            const MAX_DAILY_WITHDRAWALS = 6;
             if (withdrawalCount >= MAX_DAILY_WITHDRAWALS) {
-                return ctx.reply("🚫 You have reached your daily withdrawal limit. You can only withdraw up to 2 times per day.");
+                return ctx.reply("🚫 You have reached your daily withdrawal limit. You can only withdraw up to 6 times per day.");
             }
 
             // Initialize the withdrawal state in the database
