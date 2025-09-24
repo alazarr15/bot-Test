@@ -23,7 +23,7 @@ require("./commands/start")(bot);
 require('./commands/transfer_history')(bot);
 
 // ⭐ IMPORTANT: Register the scene handler (which applies session and stage middleware) FIRST
-require("./handlers/manualDepositSceneHandler")(bot); // <--- THIS LINE MOVED UP
+//require("./handlers/manualDepositSceneHandler")(bot); // <--- THIS LINE MOVED UP
 
 // ✅ Register event handlers except deposit action handler
 require("./handlers/textHandler")(bot);
