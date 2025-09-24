@@ -110,7 +110,13 @@ module.exports = function (bot) {
                 transferInProgress: null,
                 registrationInProgress: null,
                 usernameChangeInProgress: null,
-                depositInProgress: null
+                 depositInProgress: {
+          step: null,
+          amount: null,
+          depositType: null,
+          txId: null,
+          timestamp: null
+        }
             }
         });
     }
@@ -328,9 +334,92 @@ if (data.startsWith("withdraw_")) {
 
         // Handle 'manual_deposit' callback
         if (data === "manual_deposit") {
-            await ctx.answerCbQuery();
-            return ctx.scene.enter("manualDeposit");
+          const user = await User.findOne({ telegramId });
+           await ctx.answerCbQuery();
+
+            if (!user) {
+        return ctx.answerCbQuery("🚫 Please register first.");
+    }
+    // Set the deposit state and prompt for amount
+    await User.updateOne({ telegramId }, { $set: { depositInProgress: { step: "getAmount" } } });
+    await ctx.reply("💵 Please enter the amount you wish to deposit: (Type /cancel to exit)");
+    return ctx.answerCbQuery();
         }
+
+
+        // From callbackHandler_v2.js
+ const user = await User.findOne({ telegramId });
+const depositState = user?.depositInProgress;
+if (user && depositState && depositState.step === "selectMethod") {
+    let depositType = null;
+    if (data === "payment_cbe") {
+        depositType = "CBE";
+    } else if (data === "payment_telebirr") {
+        depositType = "Telebirr";
+    }
+
+    if (depositType) {
+        // Update the state to awaitingSMS and store the deposit type
+        await User.updateOne(
+            { telegramId },
+            { $set: { "depositInProgress.depositType": depositType, "depositInProgress.step": "awaitingSMS" } }
+        );
+
+        // Provide instructions for the user
+        let instructions = "";
+        if (depositType === "CBE") {
+            instructions = `የኢትዮጵያ ንግድ ባንክ አካውንት
+
+\`\`\`
+1000454544246 
+\`\`\`
+
+\`\`\`
+1. ከላይ ባለው የኢትዮጵያ ንግድ ባንክ አካውንት ${amount} ብር ያስገቡ
+
+2. የምትልኩት የገንዘብ መጠን እና እዚ ላይ እንዲሞላልዎ የምታስገቡት የብር መጠን ተመሳሳይ መሆኑን እርግጠኛ ይሁኑ
+
+3. ብሩን ስትልኩ የከፈላችሁበትን መረጃ የያዘ አጭር የጹሁፍ መልክት (sms) ከኢትዮጵያ ንግድ ባንክ ይደርሳችኋል
+
+4. የደረሳችሁን አጭር የጹሁፍ መልክት (sms) ሙሉውን ኮፒ (copy) በማረግ ከታች ባለው የቴሌግራም የጹሁፍ ማስገቢያው ላይ ፔስት (paste) በማረግ ይላኩት
+
+5. ብር ስትልኩ የምትጠቀሙት USSD (*889#) ከሆነ፣ ከUSSD (*889#) መጨረሻ ላይ "Complete" ሲያሳይ፣ 3 ቁጥርን በመጫን የትራንዛክሽን ቁጥሩን ያሳያል። ይህን ቁጥር ጽፎ ይቀመጡ
+\`\`\`
+
+🔔 ማሳሰቢያ:
+- አጭር የጹሁፍ መልክት (sms) ካልደረሳቹ፣ የከፈላችሁበትን ደረሰኝ ከባንክ በመቀበል በማንኛውም ሰአት ትራንዛክሽን ቁጥሩን ቦቱ ላይ ማስገባት ትችላላቹ
+
+- የክፍያ ችግር ካለ፣ [@luckybingos] ኤጀንቱን ማዋራት ይችላሉ፡፡  ለማቋረጥ /cancel
+
+👉 የከፈለችሁበትን አጭር የጹሁፍ መልክት (sms) ወይም "FT" ብሎ የሚጀምረውን የትራንዛክሽን ቁጥር እዚ ላይ ያስገቡ 👇👇👇`;
+        } else if (depositType === "Telebirr") {
+            instructions = ` 📱 የቴሌብር አካውንት
+
+    \`\`\`
+    0930534417
+    \`\`\`
+
+    \`\`\`
+    1. ከላይ ባለው የቴሌብር አካውንት ${amount} ብር ያስገቡ
+
+    2. የምትልኩት የገንዘብ መጠን እና እዚ ላይ እንዲሞላልዎ የምታስገቡት የብር መጠን ተመሳሳይ መሆኑን እርግጠኛ ይሁኑ
+
+    3. ብሩን ስትልኩ የከፈላችሁበትን መረጃ የያዘ አጭር የጹሁፍ መልክት (sms) ከቴሌብር ይደርሳችኋል
+
+    4. የደረሳችሁን አጭር የጹሁፍ መልክት (sms) ሙሉውን ኮፒ (copy) በማረግ ከታች ባለው የቴሌግራም የጹሁፍ ማስገቢያው ላይ ፔስት (paste) በማረግ ይላኩት
+    \`\`\`
+
+    🔔 ማሳሰቢያ:
+    - የክፍያ ችግር ካለ፣ [@luckybingos] ኤጀንቱን ማዋራት ይችላሉ፡፡ ለማቋረጥ /cancel
+
+    👉 የከፈለችሁበትን አጭር የጹሁፍ መልክት (sms) እዚ ላይ ያስገቡ 👇👇👇`;
+        }
+
+        await ctx.reply(`✅ Selected ${depositType}. Amount: ${depositState.amount} ETB.\n\n${instructions}`);
+        return ctx.answerCbQuery("Proceeding to deposit verification.");
+    }
+}
+
 
         // Handle balance callback
         if (data === "balance") {

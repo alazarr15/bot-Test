@@ -3,6 +3,8 @@ const Transfer = require('../Model/transfer');
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 const mongoose = require("mongoose");
 const { registrationInProgress } = require("./state/registrationState"); // Ensure this is imported
+const SmsMessage = require("../Model/SmsMessage"); // Import your SMS message model
+
 
 // 🧩 Inline menu builder - This function is placed here as it's used within this module.
 function buildMainMenu(user) {
@@ -61,8 +63,13 @@ if (message === "/cancel" || message === "cancel") {
             { telegramId },
             {
                 $set: {
-                    depositInProgress: { status: null, amount: null, method: null }
-                }
+ depositInProgress: {
+          step: null,
+          amount: null,
+          depositType: null,
+          txId: null,
+          timestamp: null
+        }                }
             }
         );
 
@@ -100,6 +107,110 @@ if (message === "/cancel" || message === "cancel") {
 
     // 5. Nothing active
     return ctx.reply("👍 There is no active operation to cancel.");
+}
+
+
+// From textHandler_v2.js
+const depositState = user?.depositInProgress;
+if (user && depositState) {
+    // Handle amount input from the user
+    if (depositState.step === "getAmount") {
+        const amount = parseFloat(messageRaw);
+        if (isNaN(amount) || amount <= 0) {
+            return ctx.reply("🚫 የተሳሳተ መጠን። እባክዎ ትክክለኛ ቁጥር ያስገቡ (ለምሳሌ፦ 100)። (ለመውጣት /cancel ይጻፉ)");
+        }
+        // Update state to await payment method selection
+        await User.updateOne(
+            { telegramId },
+            { $set: { "depositInProgress.amount": amount, "depositInProgress.step": "selectMethod" } }
+        );
+        return ctx.reply(`💰 የሚፈልጉት ${amount} ብር ለማስገባት ነው። እባክዎ የክፍያ ዘዴዎን ይምረጡ: (ለመውጣት /cancel ይጻፉ)`, {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: "CBE to CBE", callback_data: "payment_cbe" }],
+                    [{ text: "Telebirr To Telebirr", callback_data: "payment_telebirr" }]
+                ],
+            },
+        });
+    }
+}
+
+
+// From textHandler_v2.js
+if (depositState.step === "awaitingSMS") {
+    const claimedAmount = depositState.amount;
+    const depositType = depositState.depositType;
+    const cbeRegex = /(FT[A-Z0-9]{10})/i;
+    const telebirrRegex = /(?:transaction number is|የሂሳብ እንቅስቃሴ ቁጥርዎ|Lakkoofsi sochii maallaqaa keessan|ቁፅሪ ሒሳብ ዝተንቀሳቀሰ|lambarka hawulgalkaaguna waa)\s*([A-Z0-9]{10})\'?/i;
+    let transactionId = null;
+
+    if (depositType === 'CBE') {
+        const cbeMatch = messageRaw.match(cbeRegex);
+        if (cbeMatch) {
+            transactionId = cbeMatch[1];
+        }
+    } else if (depositType === 'Telebirr') {
+        const telebirrMatch = messageRaw.match(telebirrRegex);
+        if (telebirrMatch) {
+            transactionId = telebirrMatch[1];
+        }
+    }
+
+    if (!transactionId) {
+        return ctx.reply("🚫 የገለበጡት መልእክት ትክክለኛ የግብይት መለያ አልያዘም። እባክዎ ደግመው ይሞክሩ።");
+    }
+
+    // ⭐ STEP 1: Find the matching SMS message first.
+    const matchingSms = await SmsMessage.findOne({
+        status: "pending",
+        $and: [
+            { message: { $regex: new RegExp(transactionId, "i") } },
+            { message: { $regex: new RegExp(claimedAmount.toFixed(2).replace('.', '\\.'), "i") } }
+        ]
+    });
+
+    if (matchingSms) {
+        // ⭐ STEP 2: Only if a match is found, start the transaction.
+        const session = await mongoose.startSession();
+        session.startTransaction();
+
+        try {
+            // ⭐ STEP 3: Update both the user and the SMS record atomically.
+            // Find and update the user's balance.
+            const updatedUser = await User.findOneAndUpdate(
+                { telegramId },
+                { $inc: { balance: claimedAmount }, $set: { depositInProgress: null } },
+                { new: true, session }
+            );
+
+            // Update the status of the matching SMS message to prevent double-spending.
+            await SmsMessage.updateOne(
+                { _id: matchingSms._id },
+                { $set: { status: "processed", processedBy: telegramId, processedAt: new Date() } },
+                { session }
+            );
+
+            // ⭐ STEP 4: Commit the changes if both updates were successful.
+            await session.commitTransaction();
+            session.endSession();
+
+            // Send a success message.
+            return ctx.reply(`✅ Your deposit of ${claimedAmount} ETB has been successfully approved! Your new balance is: *${updatedUser.balance} ETB*.`, { parse_mode: 'Markdown' });
+            
+        } catch (error) {
+            // ⭐ STEP 5: Abort the transaction and handle errors.
+            await session.abortTransaction();
+            session.endSession();
+            console.error("❌ Transaction failed during deposit processing:", error);
+
+            // Reset the user's state and inform them.
+            await User.updateOne({ telegramId }, { $set: { depositInProgress: null } });
+            return ctx.reply("🚫 A server error occurred while processing your deposit. Please try again later.");
+        }
+    } else {
+        // ⭐ Handle the case where no matching SMS was found.
+        return ctx.reply("🚫 No matching deposit found. Please make sure you forwarded the correct and original confirmation message. If you believe this is an error, please contact support. (Type /cancel to exit)");
+    }
 }
 
             // ⭐ FIX 1: Use the `user` variable consistently.

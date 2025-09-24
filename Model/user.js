@@ -45,6 +45,26 @@ const userSchema = new mongoose.Schema({
     type: Object,
     default: null,
   },
+   depositInProgress: {
+    step: {
+      type: String,
+      enum: ['getAmount', 'selectMethod', 'awaitingSMS', 'processing', 'completed', 'cancelled'],
+    },
+    amount: {
+      type: Number,
+    },
+    depositType: {
+      type: String,
+      enum: ['CBE', 'Telebirr'],
+    },
+    txId: {
+      type: String,
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now,
+    },
+  },
   usernameChangeInProgress: {
     type: Object,
     default: null,
