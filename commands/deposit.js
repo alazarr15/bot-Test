@@ -2,26 +2,8 @@
 
 const User = require("../Model/user");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
+const { clearAllFlows } = require("../utils/flowUtils");
 
-// You should define this function or import it if it's already defined elsewhere.
-// For example, if it's in a utils file.
-async function clearAllFlows(telegramId) {
-    await User.findOneAndUpdate({ telegramId }, {
-        $set: {
-            withdrawalInProgress: null,
-            transferInProgress: null,
-            registrationInProgress: null,
-            usernameChangeInProgress: null,
-             depositInProgress: {
-          step: null,
-          amount: null,
-          depositType: null,
-          txId: null,
-          timestamp: null
-        }
-        }
-    });
-}
 
 module.exports = function (bot) {
     bot.command("deposit", async (ctx) => {

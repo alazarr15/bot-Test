@@ -4,28 +4,9 @@ const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 const mongoose = require("mongoose");
 const { registrationInProgress } = require("./state/registrationState"); // Ensure this is imported
 const SmsMessage = require("../Model/SmsMessage"); // Import your SMS message model
+const Deposit = require("../Model/Deposit"); 
+const { buildMainMenu } = require("../utils/menuMarkup");
 
-
-// 🧩 Inline menu builder - This function is placed here as it's used within this module.
-function buildMainMenu(user) {
-    return {
-        reply_markup: {
-            inline_keyboard: [
-                [{ text: `✅ Registered as ${user?.username || "Guest"}`, callback_data: "registered" }],
-                [{ text: "🎮 Play", callback_data: "Play" }],
-                [
-                    { text: "💰 Check Balance", callback_data: "balance" },
-                    { text: "💳 Deposit", callback_data: "deposit" }
-                ],
-                [
-                    { text: "📞 Contact Support", callback_data: "support" },
-                    { text: "📖 Instruction", callback_data: "not_available" }
-                ],
-                [{ text: "📨 Invite", callback_data: "invite" }]
-            ]
-        }
-    };
-}
 
 module.exports = function (bot) {
     bot.on("text", async (ctx) => {
@@ -189,6 +170,19 @@ if (depositState.step === "awaitingSMS") {
                 { $set: { status: "processed", processedBy: telegramId, processedAt: new Date() } },
                 { session }
             );
+
+             // ⭐ NEW: Create the deposit record within the same transaction.
+            await Deposit.create([{
+                userId: updatedUser._id,
+                telegramId: updatedUser.telegramId,
+                amount: claimedAmount,
+                method: depositType,
+                status: 'approved',
+                transactionId: transactionId,
+                smsMessageId: matchingSms._id,
+                balanceBefore: updatedUser.balance - claimedAmount, // Calculate balanceBefore
+                balanceAfter: updatedUser.balance,
+            }], { session });
 
             // ⭐ STEP 4: Commit the changes if both updates were successful.
             await session.commitTransaction();

@@ -1,26 +1,7 @@
 const User = require("../Model/user");
-const { buildMainMenu } = require("../utils/menuMarkup");
+    
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
-
-// You must either define clearAllFlows here or import it
-// from the callbackQueryHandler.js file.
-async function clearAllFlows(telegramId) {
-    await User.findOneAndUpdate({ telegramId }, {
-        $set: {
-            withdrawalInProgress: null,
-            transferInProgress: null,
-            registrationInProgress: null,
-            usernameChangeInProgress: null,
-             depositInProgress: {
-          step: null,
-          amount: null,
-          depositType: null,
-          txId: null,
-          timestamp: null
-        }
-        }
-    });
-}
+const { clearAllFlows } = require("../utils/flowUtils");
 
 module.exports = function (bot) {
     bot.command("change_username", async (ctx) => {
