@@ -1,6 +1,6 @@
 const botCommands = [
   { command: "start", description: "Start the bot" },
-  { command: "Play", description: "Start playing game" },
+  { command: "play", description: "Start playing game" },
   { command: "register", description: "Register for an account" },
   { command: "balance", description: "Check account balance" },
   { command: "deposit", description: "Deposit funds" },

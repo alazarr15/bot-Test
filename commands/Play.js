@@ -2,7 +2,7 @@ const User = require("../Model/user");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 
 module.exports = function (bot) {
-  bot.command("Play", async (ctx) => {
+  bot.command("play", async (ctx) => {
     try {
       const telegramId = ctx.from.id;
 
