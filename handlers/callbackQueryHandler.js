@@ -372,8 +372,7 @@ if (data.startsWith("withdraw_")) {
 
     // Provide instructions for the user
     let instructions = "";
-        if (method === "payment_cbe") {
-  depositType = "CBE";
+        if (depositType === "payment_cbe") {
   instructions = `
 የኢትዮጵያ ንግድ ባንክ አካውንት
 
@@ -400,8 +399,7 @@ if (data.startsWith("withdraw_")) {
 
 👉 የከፈለችሁበትን አጭር የጹሁፍ መልክት (sms) ወይም "FT" ብሎ የሚጀምረውን የትራንዛክሽን ቁጥር እዚ ላይ ያስገቡ 👇👇👇
 `;
-    } else if (method === "payment_telebirr") {
-      depositType = "Telebirr";
+    } else if (depositType === "payment_telebirr") {
       instructions = `
     📱 የቴሌብር አካውንት
 
