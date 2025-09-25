@@ -16,16 +16,18 @@ module.exports = function (bot) {
                 globalRateLimiter.consume("global"),
             ]);
 
-            const user = await User.findOne({ telegramId });
+           const user = await User.findOne({ telegramId });
 
-            if (!user) {
-                return ctx.reply("🚫 You must register first to make a deposit. Please click below to register:", {
-                    reply_markup: {
-                        inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
-                    }
-                });
-            }
-
+// Check if the user exists and if they have a phone number
+if (!user || !user.phoneNumber) {
+  // If the user doesn't exist OR they don't have a phone number,
+  // they are not fully registered.
+  return ctx.reply("🚫 You must register first to check your balance. Please click below to register:", {
+    reply_markup: {
+      inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
+    }
+  });
+}
             // ✅ CORRECTED: Clear all other in-progress flows before starting this one.
             await clearAllFlows(telegramId);
             

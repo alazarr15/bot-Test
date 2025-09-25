@@ -1,3 +1,5 @@
+// start.js (or whatever your file is named)
+
 const User = require("../Model/user");
 const path = require("path");
 const { buildMainMenu } = require("../utils/menuMarkup");
@@ -10,23 +12,45 @@ module.exports = function (bot) {
     try {
       const telegramId = ctx.from.id;
 
-           // ✅ Rate limit: 1 request per second per user
-           await userRateLimiter.consume(telegramId);
-     
-           // ✅ Rate limit: 200 requests per second globally
-           await globalRateLimiter.consume("global");
-      // Optional: show typing action
-      await ctx.sendChatAction("upload_photo");
+      // ✅ Rate limit: 1 request per second per user
+      await userRateLimiter.consume(telegramId);
 
-      // Show logo
+      // ✅ Rate limit: 200 requests per second globally
+      await globalRateLimiter.consume("global");
+
+      await ctx.sendChatAction("upload_photo");
       await ctx.replyWithPhoto({ source: LOGO_PATH });
 
-      // Try to find user
+      // Find the user by their unique telegramId
       const user = await User.findOne({ telegramId });
 
-      if (user) {
+      // ===================================================
+      // 🚀 The new logic starts here
+      // ===================================================
+
+      // Case 1: The user exists and has a phone number (fully registered)
+      if (user && user.phoneNumber) {
         await ctx.reply("👋 Welcome back! Choose an option below.", buildMainMenu(user));
-      } else {
+      } 
+      
+      // Case 2: The user exists but does NOT have a phone number (incomplete registration)
+      else if (user && !user.phoneNumber) {
+        // You can also check for a specific step in `registrationInProgress` here
+        await ctx.reply(
+          "📲 It looks like you didn't complete your registration. Please share your contact by clicking the button below.",
+          {
+            reply_markup: {
+              keyboard: [[{ text: "📞 Share Contact", request_contact: true }]],
+              one_time_keyboard: true,
+              resize_keyboard: true,
+            },
+          }
+        );
+      } 
+      
+      // Case 3: The user does not exist at all (brand new user)
+      else {
+        // The rest of your existing logic for a new user remains the same
         await ctx.reply(
           "👋 Welcome! Please register first to access the demo. Click the button below to register.",
           {
@@ -36,6 +60,11 @@ module.exports = function (bot) {
           }
         );
       }
+      
+      // ===================================================
+      // 🚀 The new logic ends here
+      // ===================================================
+
     } catch (error) {
       if (error && error.msBeforeNext) {
         return ctx.reply("⚠️ Please wait a second before trying again.");
