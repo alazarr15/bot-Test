@@ -119,34 +119,34 @@ module.exports = function (bot) {
         }
 
         // ⭐ NEW: Handle the 'register' callback query
-        if (data === "register") {
-             await clearAllFlows(telegramId);
-            await ctx.answerCbQuery();
-            const user = await User.findOne({ telegramId });
+    if (data === "register") {
+    await clearAllFlows(telegramId);
+    await ctx.answerCbQuery();
+    const user = await User.findOne({ telegramId });
 
-            if (user) {
-                // User is already registered
-                await ctx.editMessageText(`ℹ️ You are already registered as *${user.username}*`, {
-                    parse_mode: "Markdown",
-                    reply_markup: { inline_keyboard: [] }
-                });
-                // Optional: Send the main menu
-                return ctx.reply("🔄 Main menu:", buildMainMenu(user));
-            }
+    if (user && user.phoneNumber) {
+        // User is already fully registered
+        await ctx.editMessageText(`✅ You are already fully registered as *${user.username}*`, {
+            parse_mode: "Markdown",
+            reply_markup: { inline_keyboard: [] }
+        });
+        return ctx.reply("🔄 Main menu:", buildMainMenu(user));
+    }
 
-            // Start the registration flow by setting the state
-            await User.findOneAndUpdate({ telegramId }, {
-                registrationInProgress: { step: 1 }
-            }, { upsert: true });
+    // This part is only reached if the user is not fully registered.
+    // Start the registration flow by setting the state.
+    await User.findOneAndUpdate({ telegramId }, {
+        registrationInProgress: { step: 1 }
+    }, { upsert: true });
 
-            return ctx.reply("📲 Please share your contact by clicking the button below.", {
-                reply_markup: {
-                    keyboard: [[{ text: "📞 Share Contact", request_contact: true }]],
-                    one_time_keyboard: true,
-                    resize_keyboard: true
-                }
-            });
+    return ctx.reply("📲 Please share your contact by clicking the button below.", {
+        reply_markup: {
+            keyboard: [[{ text: "📞 Share Contact", request_contact: true }]],
+            one_time_keyboard: true,
+            resize_keyboard: true
         }
+    });
+}
 
 // ⭐ Handle WITHDRAWAL callbacks
 if (data.startsWith("withdraw_")) {

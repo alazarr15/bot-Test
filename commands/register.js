@@ -1,9 +1,7 @@
-// commands/register.js
-
 const User = require("../Model/user");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 const { clearAllFlows } = require("../utils/flowUtils");
-
+const { buildMainMenu } = require("../utils/keyboards");
 
 module.exports = function (bot) {
     bot.command("register", async (ctx) => {
@@ -14,17 +12,23 @@ module.exports = function (bot) {
             await userRateLimiter.consume(telegramId);
             await globalRateLimiter.consume("global");
 
-            const user = await User.findOne({ telegramId });
-
             // ✅ CORRECTED: Clear all other in-progress flows before starting this one.
             await clearAllFlows(telegramId);
 
-            if (user) {
-                return ctx.reply(`ℹ️ You are already registered as *${user.username}*`, {
-                    parse_mode: "Markdown"
+            const user = await User.findOne({ telegramId });
+
+            // ⭐ CORRECTED LOGIC: Check if the user is fully registered with a phoneNumber.
+            if (user && user.phoneNumber) {
+                // Send the first message and await its completion.
+                await ctx.reply(`✅ You are already fully registered as *${user.username}*.`, {
+                    parse_mode: "Markdown",
+                    reply_markup: { inline_keyboard: [] }
                 });
+                // Return the second message to end the function's execution.
+                return ctx.reply("🔄 Main menu:", buildMainMenu(user)); 
             }
 
+            // ⭐ This section is reached ONLY if the user is not fully registered.
             // Set the new persistent state for this flow
             await User.findOneAndUpdate({ telegramId }, {
                 registrationInProgress: { step: 1 }

@@ -1,5 +1,3 @@
-// start.js (or whatever your file is named)
-
 const User = require("../Model/user");
 const path = require("path");
 const { buildMainMenu } = require("../utils/menuMarkup");
@@ -25,7 +23,7 @@ module.exports = function (bot) {
       const user = await User.findOne({ telegramId });
 
       // ===================================================
-      // 🚀 The new logic starts here
+      // 🚀 The improved logic starts here
       // ===================================================
 
       // Case 1: The user exists and has a phone number (fully registered)
@@ -33,9 +31,8 @@ module.exports = function (bot) {
         await ctx.reply("👋 Welcome back! Choose an option below.", buildMainMenu(user));
       } 
       
-      // Case 2: The user exists but does NOT have a phone number (incomplete registration)
-      else if (user && !user.phoneNumber) {
-        // You can also check for a specific step in `registrationInProgress` here
+      // Case 2: The user is not fully registered and is in the registration flow
+      else if (user && user.registrationInProgress && user.registrationInProgress.step === 1) {
         await ctx.reply(
           "📲 It looks like you didn't complete your registration. Please share your contact by clicking the button below.",
           {
@@ -62,7 +59,7 @@ module.exports = function (bot) {
       }
       
       // ===================================================
-      // 🚀 The new logic ends here
+      // 🚀 The improved logic ends here
       // ===================================================
 
     } catch (error) {
