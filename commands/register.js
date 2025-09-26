@@ -1,7 +1,7 @@
 const User = require("../Model/user");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 const { clearAllFlows } = require("../utils/flowUtils");
-const { buildMainMenu } = require("../utils/keyboards");
+const { buildMainMenu } = require("../utils/menuMarkup");
 
 module.exports = function (bot) {
     bot.command("register", async (ctx) => {
