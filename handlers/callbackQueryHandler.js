@@ -447,16 +447,23 @@ if (depositState.step !== "selectMethod" || !depositState.amount) {
         }
 
        // Handle invite callback
-        if (data === "invite") {
+       if (data === "invite") {
             try {
-                 await clearAllFlows(telegramId);
+                 await clearAllFlows(telegramId);
                 await ctx.answerCbQuery();
+
+                // IMPORTANT: Use your actual bot's username (e.g., Danbingobot)
                 const inviteLink = `https://t.me/Danbingobot?start=${telegramId}`;
 
-                // ⭐ The message for the share URL needs to be encoded.
+                // 1. The message content your user will share
                 const shareMessageText = `🎉 Join Lucky Bingo and get a bonus when you register!`;
-                const encodedShareMessage = encodeURIComponent(`${shareMessageText}\n${inviteLink}`);
+                // Include the link directly in the shared text for clarity
+                const fullShareMessage = `${shareMessageText}\n\n🔗 ${inviteLink}`;
+                
+                // 2. Use the 'tg://msg' scheme for direct sharing (this is the key change!)
+                const telegramShareUrl = `tg://msg?text=${encodeURIComponent(fullShareMessage)}`;
 
+                // 3. The message sent to the user when they tap the "invite" callback button
                 const message = `
 🎉 *Invite & Earn!*
 Share Lucky Bingo with your friends and earn rewards when they join using your link.
@@ -468,7 +475,8 @@ Share Lucky Bingo with your friends and earn rewards when they join using your l
                         inline_keyboard: [
                             [{
                                 text: "➡️ Share with Friends",
-                                url: `https://t.me/share/url?text=${encodedShareMessage}`
+                                // Updated to use the tg://msg scheme
+                                url: telegramShareUrl 
                             }]
                         ]
                     }
@@ -478,14 +486,11 @@ Share Lucky Bingo with your friends and earn rewards when they join using your l
                 return ctx.reply("🚫 An error occurred. Please try again.");
             }
         }
-
         console.warn(`⚠️ Unhandled callback data: ${data}`);
         return;
     });
 
-    bot.action("copied", async (ctx) => {
-        await ctx.answerCbQuery("✅ Link copied!", { show_alert: false });
-    });
+   
 };
 
    
