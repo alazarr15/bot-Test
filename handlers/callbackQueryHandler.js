@@ -332,7 +332,8 @@ if (data.startsWith("withdraw_")) {
             supports_streaming: true,
         });
         
-        
+        console.log("Sent video message id:", sentMessage.message_id);
+
        
 
         // Send the instruction menu again after the video so they can pick another
