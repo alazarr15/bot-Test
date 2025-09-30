@@ -286,7 +286,7 @@ if (data.startsWith("withdraw_")) {
     const guideMap = {
         // ... (guide definitions) ...
         'registration': {
-            fileName: 'registration_guide.mp4', 
+            fileName: 'registration.mp4', 
             caption: "✅ *Registration Guide*\nWatch this video to complete your account setup."
         },
         'howtoplay': {
