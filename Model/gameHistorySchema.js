@@ -43,4 +43,4 @@ const gameHistorySchema = new mongoose.Schema({
   },
 }, { timestamps: true });
 
-module.exports = mongoose.model('GameHistorySchema', gameHistorySchema);
+module.exports = mongoose.model('GameHistory', gameHistorySchema);

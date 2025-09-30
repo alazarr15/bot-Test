@@ -2,7 +2,7 @@
 
 const User = require("../Model/user");
 const Withdrawal = require("../Model/withdrawal");
-const GameHistory = require("../Model/gameHistorySchema"); // 1. IMPORT THE GAME HISTORY MODEL
+const GameHistory = require("../Model/gameHistorySchema");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 const { clearAllFlows } = require("../utils/flowUtils");
 
@@ -42,14 +42,14 @@ module.exports = function (bot) {
             // --- NEW WITHDRAWAL CONDITION CHECK START ---
             
             // 2. Query GameHistory to check for at least one win
-            const hasWonGame = await GameHistory.exists({
-                telegramId: String(telegramId), // The schema uses String for telegramId
-                didWin: true
-            });
+          const winningGame = await GameHistory.findOne({
+    telegramId: String(telegramId),
+    didWin: true
+});
 
-            if (!hasWonGame) {
-                return ctx.reply("🚫 **Withdrawal Blocked:** You must win at least one game before you can withdraw any funds. Good luck!", { parse_mode: "Markdown" });
-            }
+if (!winningGame) { // Check if a winning record was NOT found
+    return ctx.reply("🚫 **Withdrawal Blocked:** You must win at least one game before you can withdraw any funds. Good luck!", { parse_mode: "Markdown" });
+}
             
             // --- NEW WITHDRAWAL CONDITION CHECK END ---
             

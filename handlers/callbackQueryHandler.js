@@ -275,9 +275,7 @@ if (data.startsWith("withdraw_")) {
         });
     }
 
-   
-
-// C. Handle a Guide Button Click (Send the Video)
+ // C. Handle a Guide Button Click (Send the Video)
   if (data.startsWith("guide_")) {
     await clearAllFlows(telegramId);
     await ctx.answerCbQuery("⏳ Preparing video...", { show_alert: false });
@@ -312,7 +310,7 @@ if (data.startsWith("withdraw_")) {
     }
 
     const videoPath = path.join(__dirname, '..', 'public', 'videos', guide.fileName);
-    
+    console.log(`🔍 Checking for video at: ${videoPath}`);
     // ⭐ RECOMMENDED ADDITION: Check if the file exists
     if (!fs.existsSync(videoPath)) {
         console.error(`❌ MISSING FILE: Guide video not found for '${guideType}' at: ${videoPath}`);
@@ -351,7 +349,9 @@ if (data.startsWith("withdraw_")) {
         console.error(`❌ Error sending ${guideType} video during stream/upload:`, error);
         return ctx.reply("🚫 Sorry, the video guide is temporarily unavailable due to an upload issue. Please contact support.");
     }
-}
+}  
+
+
     
         if (data === "Play") {
 
