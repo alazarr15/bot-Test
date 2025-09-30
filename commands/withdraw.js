@@ -42,9 +42,10 @@ module.exports = function (bot) {
             // --- NEW WITHDRAWAL CONDITION CHECK START ---
             
             // 2. Query GameHistory to check for at least one win
-          const winningGame = await GameHistory.findOne({
-    telegramId: String(telegramId),
-    didWin: true
+        // New (Correct) code:
+const winningGame = await GameHistory.findOne({
+  telegramId: String(telegramId),
+  eventType: 'win' // <--- Use the 'eventType' field as confirmed by your first file
 });
 
 if (!winningGame) { // Check if a winning record was NOT found
@@ -56,7 +57,7 @@ if (!winningGame) { // Check if a winning record was NOT found
             // ✅ CORRECTED: Clear all other in-progress flows before starting this one.
             await clearAllFlows(telegramId);
             
-            const MIN_WITHDRAWAL_AMOUNT = 50;
+            const MIN_WITHDRAWAL_AMOUNT = 100;
             if (user.balance < MIN_WITHDRAWAL_AMOUNT) {
                 return ctx.reply(`🚫 Your balance must be at least *${MIN_WITHDRAWAL_AMOUNT} Birr* to withdraw. Your current balance is *${user.balance} Birr*.`, { parse_mode: "Markdown" });
             }

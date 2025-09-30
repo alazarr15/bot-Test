@@ -168,7 +168,7 @@ if (depositState.step === "awaitingSMS") {
         const BONUS_AMOUNT = 10; // Birr
         let bonusToAward = 0;
 
-        if (claimedAmount > BONUS_THRESHOLD) {
+        if (claimedAmount >= BONUS_THRESHOLD) {
             bonusToAward = BONUS_AMOUNT;
         }
 
@@ -254,7 +254,8 @@ if (depositState.step === "awaitingSMS") {
                 // 💰 Handle amount input
                 if (userState.step === "getAmount") {
                     let amount = parseFloat(messageRaw.replace(/[^0-9.]/g, '').trim()); // Clean up input first
-                    amount = Math.round(amount * 100) / 100; // Round to 2 decimals                    
+                    amount = Math.round(amount * 100) / 100; // Round to 2 decimals  
+                     const MIN_WITHDRAWAL_AMOUNT = 100;                  
                     if (isNaN(amount) || amount <= 0) {
                         return ctx.reply("🚫 የተሳሳተ መጠን ነው። እባክዎ አወንታዊ ቁጥር ያስገቡ።");
                     }

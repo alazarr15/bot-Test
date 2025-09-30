@@ -309,9 +309,11 @@ if (data.startsWith("withdraw_")) {
         return ctx.reply("🚫 Guide not found.");
     }
 
-    const videoPath = path.join(__dirname, '..', 'public', 'videos', guide.fileName);
+    const videoPath =path.join(__dirname, "..", "images", guide.fileName);
     console.log(`🔍 Checking for video at: ${videoPath}`);
     // ⭐ RECOMMENDED ADDITION: Check if the file exists
+
+    
     if (!fs.existsSync(videoPath)) {
         console.error(`❌ MISSING FILE: Guide video not found for '${guideType}' at: ${videoPath}`);
         
