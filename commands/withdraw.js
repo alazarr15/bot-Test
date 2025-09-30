@@ -2,6 +2,7 @@
 
 const User = require("../Model/user");
 const Withdrawal = require("../Model/withdrawal");
+const GameHistory = require("../Model/gameHistorySchema"); // 1. IMPORT THE GAME HISTORY MODEL
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 const { clearAllFlows } = require("../utils/flowUtils");
 
@@ -27,16 +28,31 @@ module.exports = function (bot) {
 
             const user = await User.findOne({ telegramId });
 
-// Check if the user exists and if they have a phone number
-if (!user || !user.phoneNumber) {
-  // If the user doesn't exist OR they don't have a phone number,
-  // they are not fully registered.
-  return ctx.reply("🚫 You must register first to check your balance. Please click below to register:", {
-    reply_markup: {
-      inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
-    }
-  });
-}
+            // Check if the user exists and if they have a phone number
+            if (!user || !user.phoneNumber) {
+                // If the user doesn't exist OR they don't have a phone number,
+                // they are not fully registered.
+                return ctx.reply("🚫 You must register first to check your balance. Please click below to register:", {
+                    reply_markup: {
+                        inline_keyboard: [[{ text: "🔐 Register", callback_data: "register" }]]
+                    }
+                });
+            }
+            
+            // --- NEW WITHDRAWAL CONDITION CHECK START ---
+            
+            // 2. Query GameHistory to check for at least one win
+            const hasWonGame = await GameHistory.exists({
+                telegramId: String(telegramId), // The schema uses String for telegramId
+                didWin: true
+            });
+
+            if (!hasWonGame) {
+                return ctx.reply("🚫 **Withdrawal Blocked:** You must win at least one game before you can withdraw any funds. Good luck!", { parse_mode: "Markdown" });
+            }
+            
+            // --- NEW WITHDRAWAL CONDITION CHECK END ---
+            
             // ✅ CORRECTED: Clear all other in-progress flows before starting this one.
             await clearAllFlows(telegramId);
             
@@ -80,6 +96,14 @@ if (!user || !user.phoneNumber) {
                 }
             });
         } catch (error) {
+            // If rate limiting failed, it throws an error that we catch here as well
+            if (error.key) {
+                 // You may want to handle the rate limiting error specifically here, 
+                 // e.g., reply with a message about trying later.
+                 console.error("Rate limit hit for user:", telegramId);
+                 return ctx.reply("🛑 You are performing too many actions. Please try again shortly.");
+            }
+            
             console.error("❌ Error initiating /withdraw command for user:", telegramId, error);
             return ctx.reply("🚫 An error occurred. Please try again.");
         }

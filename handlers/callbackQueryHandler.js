@@ -5,8 +5,10 @@ const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 const { clearAllFlows } = require("../utils/flowUtils");
 const { processTelebirrWithdrawal } = require('./telebirrWorker.js');
 const { getDriver, resetDriver } = require('./appiumService.js'); // 👈 Using the new service
-const { buildMainMenu } = require("../utils/menuMarkup");
-
+const { buildMainMenu,buildInstructionMenu } = require("../utils/menuMarkup");
+const fs = require('fs'); // ADD THIS
+const path = require('path'); // ADD THIS
+// ... rest of your imports
 const telebirrWithdrawalQueue = [];
 
 const processQueue = (bot) => {
@@ -243,6 +245,114 @@ if (data.startsWith("withdraw_")) {
     return;
 }
      
+
+    // A. Handle opening the Instruction Sub-Menu
+    if (data === "open_instructions_menu") {
+        await clearAllFlows(telegramId);
+        await ctx.answerCbQuery();
+        
+        const instructionMenu = buildInstructionMenu(); 
+
+        // Edit the existing message to show the new sub-menu
+        return ctx.editMessageText("📖 **Instruction Guides**\n\nSelect a guide below to watch the video instructions:", {
+            parse_mode: 'Markdown',
+            ...instructionMenu, // Spreads the reply_markup property
+        });
+    }
+
+    // B. Handle Back Button to Main Menu
+    if (data === "main_menu") {
+        await clearAllFlows(telegramId);
+        await ctx.answerCbQuery();
+        
+        const user = await User.findOne({ telegramId });
+        const mainMenu = buildMainMenu(user);
+        
+        // Edit the message to show the main menu
+        return ctx.editMessageText("🔄 **Main Menu**", {
+            parse_mode: 'Markdown',
+            ...mainMenu,
+        });
+    }
+
+   
+
+// C. Handle a Guide Button Click (Send the Video)
+  if (data.startsWith("guide_")) {
+    await clearAllFlows(telegramId);
+    await ctx.answerCbQuery("⏳ Preparing video...", { show_alert: false });
+
+    const guideType = data.split('_')[1]; 
+    
+    // Define file info using a map (remains the same)
+    const guideMap = {
+        // ... (guide definitions) ...
+        'registration': {
+            fileName: 'registration_guide.mp4', 
+            caption: "✅ *Registration Guide*\nWatch this video to complete your account setup."
+        },
+        'howtoplay': {
+            fileName: 'how_to_play_video.mp4', 
+            caption: "🎮 *How to Play*\nLearn the simple steps to start playing your favorite games."
+        },
+        'deposit': {
+            fileName: 'deposit_guide.mp4', 
+            caption: "💳 *Deposit Guide*\nStep-by-step instructions on adding funds to your balance."
+        },
+        'withdrawal': {
+            fileName: 'withdrawal_guide.mp4', 
+            caption: "💸 *Withdrawal Guide*\nHow to securely cash out your winnings."
+        },
+    };
+
+    const guide = guideMap[guideType];
+    
+    if (!guide) {
+        return ctx.reply("🚫 Guide not found.");
+    }
+
+    const videoPath = path.join(__dirname, '..', 'public', 'videos', guide.fileName);
+    
+    // ⭐ RECOMMENDED ADDITION: Check if the file exists
+    if (!fs.existsSync(videoPath)) {
+        console.error(`❌ MISSING FILE: Guide video not found for '${guideType}' at: ${videoPath}`);
+        
+        // Provide the user with a genuine, non-technical error message.
+        return ctx.reply("🚫 **We can't find the video right now.** Please try again later or contact support if the issue persists.", { parse_mode: 'Markdown' });
+    }
+    
+    // Send the video (only executes if the file exists)
+    try {
+        const fileStream = fs.createReadStream(videoPath);
+
+        // Use replyWithVideo for clean video sending
+        const sentMessage = await ctx.replyWithVideo(fileStream, {
+            caption: guide.caption,
+            parse_mode: 'Markdown',
+            supports_streaming: true,
+        });
+        
+        // 💡 OPTIONAL: Save the file_id here...
+        
+        // 🧹 CLEANUP: Delete the local file after successful upload (remains the same)
+        fs.unlink(videoPath, (err) => {
+            if (err) {
+                console.error(`❌ Failed to delete local file ${videoPath}:`, err);
+            } else {
+                console.log(`✅ Deleted local file: ${videoPath}`);
+            }
+        });
+
+        // Send the instruction menu again after the video so they can pick another
+        return ctx.reply("📚 Want another guide?", buildInstructionMenu());
+
+    } catch (error) {
+        // This catch block now ONLY handles actual streaming/Telegram upload errors.
+        console.error(`❌ Error sending ${guideType} video during stream/upload:`, error);
+        return ctx.reply("🚫 Sorry, the video guide is temporarily unavailable due to an upload issue. Please contact support.");
+    }
+}
+    
         if (data === "Play") {
 
             try {

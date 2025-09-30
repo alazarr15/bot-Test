@@ -124,6 +124,7 @@ if (user && depositState) {
 }
 
 
+
 // From textHandler_v2.js
 if (depositState.step === "awaitingSMS") {
     const claimedAmount = depositState.amount;
@@ -162,12 +163,32 @@ if (depositState.step === "awaitingSMS") {
         const session = await mongoose.startSession();
         session.startTransaction();
 
+        // --- NEW BONUS LOGIC START ---
+        const BONUS_THRESHOLD = 50; // Birr
+        const BONUS_AMOUNT = 10; // Birr
+        let bonusToAward = 0;
+
+        if (claimedAmount > BONUS_THRESHOLD) {
+            bonusToAward = BONUS_AMOUNT;
+        }
+
+        // Define the update for $inc, always adding claimedAmount to balance
+        let updateInc = {
+            balance: claimedAmount, // Base deposit always goes to main balance
+        };
+        // Add bonus to bonus_balance if criteria met
+        if (bonusToAward > 0) {
+            updateInc.bonus_balance = bonusToAward;
+        }
+        // --- NEW BONUS LOGIC END ---
+
         try {
             // ⭐ STEP 3: Update both the user and the SMS record atomically.
-            // Find and update the user's balance.
+            
+            // Find and update the user's balance AND potential bonus balance.
             const updatedUser = await User.findOneAndUpdate(
                 { telegramId },
-                { $inc: { balance: claimedAmount }, $set: { depositInProgress: null } },
+                { $inc: updateInc, $set: { depositInProgress: null } },
                 { new: true, session }
             );
 
@@ -178,16 +199,18 @@ if (depositState.step === "awaitingSMS") {
                 { session }
             );
 
-             // ⭐ NEW: Create the deposit record within the same transaction.
+            // ⭐ NEW: Create the deposit record within the same transaction.
             await Deposit.create([{
                 userId: updatedUser._id,
                 telegramId: updatedUser.telegramId,
                 amount: claimedAmount,
                 method: depositType,
                 status: 'approved',
+                bonusAwarded: bonusToAward, // <-- NEW: Track the awarded bonus
                 transactionId: transactionId,
                 smsMessageId: matchingSms._id,
-                balanceBefore: updatedUser.balance - claimedAmount, // Calculate balanceBefore
+                // Calculate balanceBefore and balanceAfter based on the main 'balance' field
+                balanceBefore: updatedUser.balance - claimedAmount,
                 balanceAfter: updatedUser.balance,
             }], { session });
 
@@ -195,8 +218,18 @@ if (depositState.step === "awaitingSMS") {
             await session.commitTransaction();
             session.endSession();
 
-            // Send a success message.
-            return ctx.reply(`✅ Your deposit of ${claimedAmount} ETB has been successfully approved! Your new balance is: *${updatedUser.balance} ETB*.`, { parse_mode: 'Markdown' });
+            // --- NEW SUCCESS MESSAGE START ---
+            let successMessage = `✅ Your deposit of ${claimedAmount} ETB has been successfully approved!`;
+
+            if (bonusToAward > 0) {
+                successMessage += `\n🎁 You earned a **${bonusToAward} ETB bonus**!`;
+            }
+
+            successMessage += `\nYour new **Main Balance** is: *${updatedUser.balance} ETB*.`;
+            successMessage += `\nYour **Bonus Balance** is: *${updatedUser.bonus_balance} ETB*.`;
+            
+            return ctx.reply(successMessage, { parse_mode: 'Markdown' });
+            // --- NEW SUCCESS MESSAGE END ---
             
         } catch (error) {
             // ⭐ STEP 5: Abort the transaction and handle errors.
@@ -220,10 +253,18 @@ if (depositState.step === "awaitingSMS") {
             if (user && userState) { // Check if the state exists in the DB
                 // 💰 Handle amount input
                 if (userState.step === "getAmount") {
-                    const amount = parseFloat(messageRaw);
+                    let amount = parseFloat(messageRaw.replace(/[^0-9.]/g, '').trim()); // Clean up input first
+                    amount = Math.round(amount * 100) / 100; // Round to 2 decimals                    
                     if (isNaN(amount) || amount <= 0) {
                         return ctx.reply("🚫 የተሳሳተ መጠን ነው። እባክዎ አወንታዊ ቁጥር ያስገቡ።");
                     }
+
+                     // <--- INSERT THE NEW MINIMUM CHECK HERE --->
+                    if (amount < MIN_WITHDRAWAL_AMOUNT) { 
+                        return ctx.reply(`🚫 ለማውጣት የሚችሉት ዝቅተኛው መጠን *${MIN_WITHDRAWAL_AMOUNT} ብር* ነው። እባክዎ የበለጠ መጠን ያስገቡ።`, { parse_mode: 'Markdown' });
+                    }
+                    // 
+
                     if (amount > user.balance) { // 👈 Use user.balance from the DB document
                         return ctx.reply(`🚫 ያስገቡት መጠን (${amount} ብር) ከቀሪ ሒሳብዎ (${user.balance} ብር) በላይ ነው። እባክዎ ያነሰ መጠን ያስገቡ።`);
                     }
@@ -243,8 +284,11 @@ if (depositState.step === "awaitingSMS") {
                 // 🔢 Handle account number input
                 else if (userState.step === "getAccount") {
                     const accountNumber = messageRaw;
-
+                    if (!/^\d{8,16}$/.test(accountNumber)) { // Allows 8 to 16 digits
+                    return ctx.reply("🚫 የሒሳብ ቁጥሩ ትክክል አይመስልም። እባክዎ ከ8 እስከ 16 አሃዞች ያለውን ቁጥር በትክክል ያስገቡ።");
+             }
                     // Update the state in the database
+                    
                     await User.updateOne({ telegramId }, {
                         $set: {
                             "withdrawalInProgress.data.account_number": accountNumber,

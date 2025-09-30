@@ -44,7 +44,10 @@ const DepositSchema = new mongoose.Schema({
         enum: ['pending', 'approved', 'rejected'],
         default: 'pending',
     },
-
+bonusAwarded: {
+        type: Number,
+        default: 0,
+    },
     /** * The unique transaction ID from the SMS (e.g., 'FT...').
      * Making this unique prevents creating two deposit records for the same transaction.
      */
