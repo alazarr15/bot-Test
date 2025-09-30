@@ -332,16 +332,8 @@ if (data.startsWith("withdraw_")) {
             supports_streaming: true,
         });
         
-        // 💡 OPTIONAL: Save the file_id here...
         
-        // 🧹 CLEANUP: Delete the local file after successful upload (remains the same)
-        fs.unlink(videoPath, (err) => {
-            if (err) {
-                console.error(`❌ Failed to delete local file ${videoPath}:`, err);
-            } else {
-                console.log(`✅ Deleted local file: ${videoPath}`);
-            }
-        });
+       
 
         // Send the instruction menu again after the video so they can pick another
         return ctx.reply("📚 Want another guide?", buildInstructionMenu());
