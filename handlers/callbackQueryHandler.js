@@ -275,53 +275,85 @@ if (data.startsWith("withdraw_")) {
         });
     }
 
- // C. Handle a Guide Button Click (Send the Video)
-  if (data.startsWith("guide_")) {
+if (data.startsWith("guide_")) {
     await clearAllFlows(telegramId);
     await ctx.answerCbQuery("⏳ Preparing video...", { show_alert: false });
 
-    const guideType = data.split('_')[1]; 
-    
-    // Define file info using a map (remains the same)
+    const guideType = data.split('_')[1];
+
+    // Define file info using a map
     const guideMap = {
-        // ... (guide definitions) ...
         'registration': {
-            fileName: 'registration.mp4', 
+            fileName: 'registration.mp4',
             caption: "✅ *Registration Guide*\nWatch this video to complete your account setup."
         },
         'howtoplay': {
-            fileName: 'how_to_play_video.mp4', 
+            fileName: 'how_to_play_video.mp4',
             caption: "🎮 *How to Play*\nLearn the simple steps to start playing your favorite games."
         },
         'deposit': {
-            fileName: 'deposit_guide.mp4', 
+            fileName: 'deposit_guide.mp4',
             caption: "💳 *Deposit Guide*\nStep-by-step instructions on adding funds to your balance."
         },
         'withdrawal': {
-            fileName: 'withdrawal_guide.mp4', 
+            fileName: 'withdrawal_guide.mp4',
             caption: "💸 *Withdrawal Guide*\nHow to securely cash out your winnings."
         },
     };
 
     const guide = guideMap[guideType];
-    
+
     if (!guide) {
         return ctx.reply("🚫 Guide not found.");
     }
-
-    const videoPath =path.join(__dirname, "..", "images", guide.fileName);
-    console.log(`🔍 Checking for video at: ${videoPath}`);
-    // ⭐ RECOMMENDED ADDITION: Check if the file exists
-
     
+    // ⭐ VIDEO CACHING LOGIC START ⭐
+    const CACHE_PATH = path.join(__dirname, "..", "video_cache.json");
+    let videoCache = {};
+    
+    // 1. Load existing cache
+    try {
+        if (fs.existsSync(CACHE_PATH)) {
+            videoCache = JSON.parse(fs.readFileSync(CACHE_PATH, 'utf8'));
+        }
+    } catch (e) {
+        console.error("Error reading video cache:", e);
+    }
+    
+    const cachedFileId = videoCache[guide.fileName];
+
+    if (cachedFileId) {
+        console.log(`✅ Using cached file_id for ${guide.fileName}`);
+        try {
+            // Attempt to send using cached file_id (instant delivery)
+            await ctx.replyWithVideo(cachedFileId, {
+                caption: guide.caption,
+                parse_mode: 'Markdown',
+                supports_streaming: true,
+            });
+            // Successfully sent via cache, return the menu
+            return ctx.reply("📚 Want another guide?", buildInstructionMenu());
+        } catch (cacheError) {
+            // If the cached ID fails (rare, but happens if Telegram deletes it), force re-upload
+            console.warn(`⚠️ Cached file_id failed for ${guide.fileName}. Re-uploading. Error:`, cacheError.message);
+            delete videoCache[guide.fileName]; 
+        }
+    }
+    // ⭐ VIDEO CACHING LOGIC END ⭐
+
+    // 2. Fallback to local file system upload (only if no cache or cache failed)
+    const videoPath = path.join(__dirname, "..", "images", guide.fileName);
+    console.log(`🔍 Checking for video at: ${videoPath}`);
+
+    // Check if the file exists locally
     if (!fs.existsSync(videoPath)) {
         console.error(`❌ MISSING FILE: Guide video not found for '${guideType}' at: ${videoPath}`);
         
-        // Provide the user with a genuine, non-technical error message.
+        // This is the error if the file is genuinely missing from the 'images' folder
         return ctx.reply("🚫 **We can't find the video right now.** Please try again later or contact support if the issue persists.", { parse_mode: 'Markdown' });
     }
     
-    // Send the video (only executes if the file exists)
+    // Send the video (Initial upload attempt that used to fail)
     try {
         const fileStream = fs.createReadStream(videoPath);
 
@@ -332,19 +364,24 @@ if (data.startsWith("withdraw_")) {
             supports_streaming: true,
         });
         
-        console.log("Sent video message id:", sentMessage.message_id);
-
-       
+        // ⭐ SAVE the new file_id after a successful upload ⭐
+        const newFileId = sentMessage.video.file_id;
+        videoCache[guide.fileName] = newFileId;
+        fs.writeFileSync(CACHE_PATH, JSON.stringify(videoCache, null, 2), 'utf8');
+        console.log(`💾 New file_id for ${guide.fileName} cached: ${newFileId}`);
+        // ⭐ END SAVE ⭐
 
         // Send the instruction menu again after the video so they can pick another
         return ctx.reply("📚 Want another guide?", buildInstructionMenu());
 
     } catch (error) {
-        // This catch block now ONLY handles actual streaming/Telegram upload errors.
+        // This catch block now ONLY handles actual streaming/Telegram upload errors (e.g., file too big).
         console.error(`❌ Error sending ${guideType} video during stream/upload:`, error);
+        // This is the final fallback error message for an upload failure
         return ctx.reply("🚫 Sorry, the video guide is temporarily unavailable due to an upload issue. Please contact support.");
     }
-}  
+}
+
 
 
     
