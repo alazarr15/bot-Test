@@ -2,7 +2,7 @@
 
 const User = require("../Model/user");
 const Withdrawal = require("../Model/withdrawal");
-const GameHistory = require("../Model/gameHistorySchema");
+const GameHistory = require("../Model/GameHistory");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 const { clearAllFlows } = require("../utils/flowUtils");
 
@@ -39,15 +39,11 @@ module.exports = function (bot) {
                 });
             }
             
-            // --- NEW WITHDRAWAL CONDITION CHECK START ---
-            
-            // 2. Query GameHistory to check for at least one win
-        // New (Correct) code:
+          
 const winningGame = await GameHistory.findOne({
   telegramId: String(telegramId),
-  eventType: 'win' // <--- Use the 'eventType' field as confirmed by your first file
+  eventType: 'win' // <-- Matches the 'eventType' field in your active schema
 });
-
 if (!winningGame) { // Check if a winning record was NOT found
     return ctx.reply("🚫 **Withdrawal Blocked:** You must win at least one game before you can withdraw any funds. Good luck!", { parse_mode: "Markdown" });
 }
