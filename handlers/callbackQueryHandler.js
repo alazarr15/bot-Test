@@ -274,14 +274,12 @@ if (data.startsWith("withdraw_")) {
             ...mainMenu,
         });
     }
-
 if (data.startsWith("guide_")) {
     await clearAllFlows(telegramId);
     await ctx.answerCbQuery("⏳ Preparing video...", { show_alert: false });
 
     const guideType = data.split('_')[1];
 
-    // Define file info using a map
     const guideMap = {
         'registration': {
             fileName: 'registration.mp4',
@@ -304,83 +302,87 @@ if (data.startsWith("guide_")) {
     const guide = guideMap[guideType];
 
     if (!guide) {
+        console.error(`❌ Guide type '${guideType}' not found in guideMap`);
         return ctx.reply("🚫 Guide not found.");
     }
-    
-    // ⭐ VIDEO CACHING LOGIC START ⭐
+
     const CACHE_PATH = path.join(__dirname, "..", "video_cache.json");
     let videoCache = {};
-    
-    // 1. Load existing cache
+
     try {
         if (fs.existsSync(CACHE_PATH)) {
             videoCache = JSON.parse(fs.readFileSync(CACHE_PATH, 'utf8'));
+            console.log("📂 Loaded video cache:", videoCache);
         }
     } catch (e) {
-        console.error("Error reading video cache:", e);
+        console.error("❌ Error reading video cache:", e);
     }
-    
+
     const cachedFileId = videoCache[guide.fileName];
 
     if (cachedFileId) {
-        console.log(`✅ Using cached file_id for ${guide.fileName}`);
+        console.log(`✅ Attempting cached file_id for ${guide.fileName}`);
         try {
-            // Attempt to send using cached file_id (instant delivery)
             await ctx.replyWithVideo(cachedFileId, {
                 caption: guide.caption,
                 parse_mode: 'Markdown',
                 supports_streaming: true,
             });
-            // Successfully sent via cache, return the menu
+            console.log(`✅ Sent video using cached file_id for ${guide.fileName}`);
             return ctx.reply("📚 Want another guide?", buildInstructionMenu());
         } catch (cacheError) {
-            // If the cached ID fails (rare, but happens if Telegram deletes it), force re-upload
             console.warn(`⚠️ Cached file_id failed for ${guide.fileName}. Re-uploading. Error:`, cacheError.message);
-            delete videoCache[guide.fileName]; 
+            delete videoCache[guide.fileName];
         }
     }
-    // ⭐ VIDEO CACHING LOGIC END ⭐
 
-    // 2. Fallback to local file system upload (only if no cache or cache failed)
     const videoPath = path.join(__dirname, "..", "images", guide.fileName);
-    console.log(`🔍 Checking for video at: ${videoPath}`);
+    console.log(`🔍 Checking for video at path: ${videoPath}`);
 
-    // Check if the file exists locally
     if (!fs.existsSync(videoPath)) {
-        console.error(`❌ MISSING FILE: Guide video not found for '${guideType}' at: ${videoPath}`);
-        
-        // This is the error if the file is genuinely missing from the 'images' folder
-        return ctx.reply("🚫 **We can't find the video right now.** Please try again later or contact support if the issue persists.", { parse_mode: 'Markdown' });
+        console.error(`❌ Video file missing: '${guideType}' at ${videoPath}`);
+        return ctx.reply("🚫 **We can't find the video right now.** Please try again later or contact support.", { parse_mode: 'Markdown' });
     }
-    
-    // Send the video (Initial upload attempt that used to fail)
-    try {
-        const fileStream = fs.createReadStream(videoPath);
 
-        // Use replyWithVideo for clean video sending
-        const sentMessage = await ctx.replyWithVideo(fileStream, {
+    try {
+        // First attempt: send via file path (more reliable than stream for small videos)
+        const sentMessage = await ctx.replyWithVideo(videoPath, {
             caption: guide.caption,
             parse_mode: 'Markdown',
             supports_streaming: true,
         });
-        
-        // ⭐ SAVE the new file_id after a successful upload ⭐
+
         const newFileId = sentMessage.video.file_id;
         videoCache[guide.fileName] = newFileId;
         fs.writeFileSync(CACHE_PATH, JSON.stringify(videoCache, null, 2), 'utf8');
-        console.log(`💾 New file_id for ${guide.fileName} cached: ${newFileId}`);
-        // ⭐ END SAVE ⭐
+        console.log(`💾 Cached new file_id for ${guide.fileName}: ${newFileId}`);
 
-        // Send the instruction menu again after the video so they can pick another
         return ctx.reply("📚 Want another guide?", buildInstructionMenu());
 
-    } catch (error) {
-        // This catch block now ONLY handles actual streaming/Telegram upload errors (e.g., file too big).
-        console.error(`❌ Error sending ${guideType} video during stream/upload:`, error);
-        // This is the final fallback error message for an upload failure
-        return ctx.reply("🚫 Sorry, the video guide is temporarily unavailable due to an upload issue. Please contact support.");
+    } catch (errorPath) {
+        console.error(`❌ Failed sending video via file path for '${guideType}':`, errorPath.message);
+
+        // Last attempt: send via stream (fallback)
+        try {
+            const fileStream = fs.createReadStream(videoPath);
+            const sentStreamMsg = await ctx.replyWithVideo(fileStream, {
+                caption: guide.caption,
+                parse_mode: 'Markdown',
+                supports_streaming: true,
+            });
+            const newFileIdStream = sentStreamMsg.video.file_id;
+            videoCache[guide.fileName] = newFileIdStream;
+            fs.writeFileSync(CACHE_PATH, JSON.stringify(videoCache, null, 2), 'utf8');
+            console.log(`💾 Cached new file_id via stream for ${guide.fileName}: ${newFileIdStream}`);
+
+            return ctx.reply("📚 Want another guide?", buildInstructionMenu());
+        } catch (errorStream) {
+            console.error(`❌ Failed sending video via stream for '${guideType}':`, errorStream.message);
+            return ctx.reply("🚫 Sorry, the video guide is temporarily unavailable. Please contact support.", { parse_mode: 'Markdown' });
+        }
     }
 }
+
 
 
 
