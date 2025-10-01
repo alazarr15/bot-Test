@@ -274,6 +274,7 @@ if (data.startsWith("withdraw_")) {
             ...mainMenu,
         });
     }
+
 if (data.startsWith("guide_")) {
     await clearAllFlows(telegramId);
     await ctx.answerCbQuery("⏳ Preparing video...", { show_alert: false });
@@ -365,11 +366,17 @@ if (data.startsWith("guide_")) {
         // Last attempt: send via stream (fallback)
         try {
             const fileStream = fs.createReadStream(videoPath);
-            const sentStreamMsg = await ctx.replyWithVideo(fileStream, {
-                caption: guide.caption,
-                parse_mode: 'Markdown',
-                supports_streaming: true,
-            });
+            
+            // ⭐ FIX APPLIED HERE: Pass the stream as an object with 'source' and 'filename'
+            const sentStreamMsg = await ctx.replyWithVideo(
+                { source: fileStream, filename: guide.fileName }, // <-- Corrected stream upload
+                {
+                    caption: guide.caption,
+                    parse_mode: 'Markdown',
+                    supports_streaming: true,
+                }
+            );
+            
             const newFileIdStream = sentStreamMsg.video.file_id;
             videoCache[guide.fileName] = newFileIdStream;
             fs.writeFileSync(CACHE_PATH, JSON.stringify(videoCache, null, 2), 'utf8');
