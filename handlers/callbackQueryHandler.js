@@ -61,7 +61,7 @@ const processQueue = (bot) => {
                         await bot.telegram.sendMessage(
                             Number(telegramId),
                             isSuccess
-                                ? `✅ የ*${amount} ብር* ወደ አካውንትዎ ተላልፏል!`
+                                ? `✅ የ*${amount} ብር* ወደ አካውንትዎ ገቢ ተደርጓል!`
                                 : `🚫 የ*${amount} ብር* ገንዘብ ማውጣትዎ አልተሳካም። እባክዎ ቆይተው እንደገና ይሞክሩ።`,
                             { parse_mode: "Markdown" }
                         );
