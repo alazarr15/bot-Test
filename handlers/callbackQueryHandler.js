@@ -277,7 +277,7 @@ if (data.startsWith("withdraw_")) {
 
 if (data.startsWith("guide_")) {
     await clearAllFlows(telegramId);
-    await ctx.answerCbQuery("⏳ Preparing video...", { show_alert: false });
+    await ctx.answerCbQuery("⏳ Preparing your video...", { show_alert: false });
 
     const guideType = data.split('_')[1];
 
@@ -304,7 +304,7 @@ if (data.startsWith("guide_")) {
 
     if (!guide) {
         console.error(`❌ Guide type '${guideType}' not found in guideMap`);
-        return ctx.reply("🚫 Guide not found.");
+        return ctx.reply("ℹ️ This guide isn't available right now. Please choose another one.");
     }
 
     const CACHE_PATH = path.join(__dirname, "..", "video_cache.json");
@@ -330,7 +330,7 @@ if (data.startsWith("guide_")) {
                 supports_streaming: true,
             });
             console.log(`✅ Sent video using cached file_id for ${guide.fileName}`);
-            return ctx.reply("📚 Want another guide?", buildInstructionMenu());
+            return ctx.reply("📚 Want to see another guide?", buildInstructionMenu());
         } catch (cacheError) {
             console.warn(`⚠️ Cached file_id failed for ${guide.fileName}. Re-uploading. Error:`, cacheError.message);
             delete videoCache[guide.fileName];
@@ -342,7 +342,7 @@ if (data.startsWith("guide_")) {
 
     if (!fs.existsSync(videoPath)) {
         console.error(`❌ Video file missing: '${guideType}' at ${videoPath}`);
-        return ctx.reply("🚫 **We can't find the video right now.** Please try again later or contact support.", { parse_mode: 'Markdown' });
+      return ctx.reply("ℹ️ The video isn't available right now. Please try again later.");
     }
 
     try {
@@ -358,7 +358,7 @@ if (data.startsWith("guide_")) {
         fs.writeFileSync(CACHE_PATH, JSON.stringify(videoCache, null, 2), 'utf8');
         console.log(`💾 Cached new file_id for ${guide.fileName}: ${newFileId}`);
 
-        return ctx.reply("📚 Want another guide?", buildInstructionMenu());
+        return ctx.reply("📚 Want to see another guide?", buildInstructionMenu());
 
     } catch (errorPath) {
         console.error(`❌ Failed sending video via file path for '${guideType}':`, errorPath.message);
@@ -367,9 +367,9 @@ if (data.startsWith("guide_")) {
         try {
             const fileStream = fs.createReadStream(videoPath);
             
-            // ⭐ FIX APPLIED HERE: Pass the stream as an object with 'source' and 'filename'
+            // ⭐ Correct stream upload
             const sentStreamMsg = await ctx.replyWithVideo(
-                { source: fileStream, filename: guide.fileName }, // <-- Corrected stream upload
+                { source: fileStream, filename: guide.fileName },
                 {
                     caption: guide.caption,
                     parse_mode: 'Markdown',
@@ -382,10 +382,10 @@ if (data.startsWith("guide_")) {
             fs.writeFileSync(CACHE_PATH, JSON.stringify(videoCache, null, 2), 'utf8');
             console.log(`💾 Cached new file_id via stream for ${guide.fileName}: ${newFileIdStream}`);
 
-            return ctx.reply("📚 Want another guide?", buildInstructionMenu());
+            return ctx.reply("📚 Want to see another guide?", buildInstructionMenu());
         } catch (errorStream) {
             console.error(`❌ Failed sending video via stream for '${guideType}':`, errorStream.message);
-            return ctx.reply("🚫 Sorry, the video guide is temporarily unavailable. Please contact support.", { parse_mode: 'Markdown' });
+            return ctx.reply("ℹ️ The video guide is temporarily unavailable. Please try again later.");
         }
     }
 }
