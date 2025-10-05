@@ -23,7 +23,7 @@ module.exports = function (bot) {
         try {
             const phoneNumber = ctx.message.contact.phone_number;
             const accountNumber = await generateUniqueAccountNumber();
-            const bonusAmount =20; // ⭐ New: Define the bonus amount here
+            const bonusAmount =0; // ⭐ New: Define the bonus amount here
 
             // ✅ UPDATED: Instead of creating a new user, update the existing one
             // We find and update the document that was created when the user first clicked 'register'
