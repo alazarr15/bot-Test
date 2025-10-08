@@ -165,7 +165,7 @@ if (depositState.step === "awaitingSMS") {
 
         // --- NEW BONUS LOGIC START ---
         const BONUS_THRESHOLD = 50; // Birr
-        const BONUS_AMOUNT = 10; // Birr
+        const BONUS_AMOUNT = 0; // Birr
         let bonusToAward = 0;
 
         if (claimedAmount >= BONUS_THRESHOLD) {
