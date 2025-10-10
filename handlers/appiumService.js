@@ -272,5 +272,6 @@ module.exports = {
     enterPin,
     ensureDeviceIsUnlocked,
     SELECTORS,
-    TELEBIRR_LOGIN_PIN
+    TELEBIRR_LOGIN_PIN,
+    safeAction 
 };
