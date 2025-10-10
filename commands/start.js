@@ -3,7 +3,7 @@ const path = require("path");
 const { buildMainMenu } = require("../utils/menuMarkup");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 
-const LOGO_PATH = path.join(__dirname, "..", "images", "luckybingo2.png");
+const LOGO_PATH = path.join(__dirname, "..", "images", "ANNOUNCMENT.jpg");
 
 module.exports = function (bot) {
   bot.start(async (ctx) => {
