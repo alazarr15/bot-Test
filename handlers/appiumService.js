@@ -105,18 +105,67 @@ function resetDriver() {
 }
 
 
-async function safeAction(actionFn) {
-    try {
-        const d = await getDriver();
-        return await actionFn(d);
-    } catch (err) {
-        if (err.message && err.message.includes("invalid session id")) {
-            console.warn("🔄 Session died. Reconnecting...");
-            resetDriver();
+    async function safeAction(actionFn, attempt = 1) {
+        try {
             const d = await getDriver();
-            return await actionFn(d); // retry once
+            return await actionFn(d);
+        } catch (err) {
+            const msg = err.message || "";
+
+            // ⚠️ Common fatal errors
+            const isSessionDead =
+                msg.includes("invalid session id") ||
+                msg.includes("instrumentation process is not running") ||
+                msg.includes("socket hang up") ||
+                msg.includes("Failed to establish connection") ||
+                msg.includes("UiAutomator2") ||
+                msg.includes("Cannot call") ||
+                msg.includes("session deleted");
+
+            if (isSessionDead && attempt <= 2) {
+                console.warn(`💥 Detected dead Appium session (${msg}). Attempt #${attempt}`);
+                await recoverAppiumSession();
+                return safeAction(actionFn, attempt + 1);
+            }
+
+            throw err;
         }
-        throw err;
+    }
+
+
+    async function recoverAppiumSession() {
+    console.log("🧯 Recovering from UiAutomator2 crash...");
+
+    try {
+        // Try clean deletion first
+        if (driver) {
+            try {
+                await driver.deleteSession();
+            } catch (e) {
+                console.warn("DeleteSession failed during recovery:", e.message);
+            }
+        }
+
+        // Kill UiAutomator2 processes on the device
+        const execSync = require("child_process").execSync;
+        try {
+            execSync(`adb -s ${opts.capabilities.alwaysMatch["appium:udid"]} shell am force-stop io.appium.uiautomator2.server`);
+            execSync(`adb -s ${opts.capabilities.alwaysMatch["appium:udid"]} shell am force-stop io.appium.uiautomator2.server.test`);
+        } catch (e) {
+            console.warn("Failed to stop UiAutomator2 processes:", e.message);
+        }
+
+        // Restart the driver
+        resetDriver();
+        await new Promise((res) => setTimeout(res, 3000));
+        await getDriver();
+       // Backoff delay for safety
+       await new Promise((res) => setTimeout(res, 2000));
+  
+        console.log("✅ UiAutomator2 and Appium session successfully recovered.");
+    } catch (err) {
+        console.error("🔥 Critical failure in recoverAppiumSession:", err.message);
+        resetDriver();
     }
 }
 
@@ -207,12 +256,13 @@ async function navigateToHome() {
 setInterval(async () => {
     try {
         const d = await getDriver();
-        await d.getPageSource(); // lightweight call to keep session alive
+        await d.getPageSource();
     } catch (e) {
-        console.warn("Heartbeat failed, driver will be reset:", e.message);
-        resetDriver();
+        console.warn("💔 Heartbeat failed, triggering full recovery:", e.message);
+        await recoverAppiumSession();
     }
-}, 4 * 60 * 1000); 
+}, 4 * 60 * 1000);
+
 
 
 module.exports = {
