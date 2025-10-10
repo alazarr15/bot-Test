@@ -135,40 +135,46 @@ function resetDriver() {
 
 
     async function recoverAppiumSession() {
-    console.log("🧯 Recovering from UiAutomator2 crash...");
+        console.log("🧯 Recovering from UiAutomator2 crash...");
 
-    try {
-        // Try clean deletion first
-        if (driver) {
-            try {
-                await driver.deleteSession();
-            } catch (e) {
-                console.warn("DeleteSession failed during recovery:", e.message);
-            }
-        }
-
-        // Kill UiAutomator2 processes on the device
         const execSync = require("child_process").execSync;
-        try {
-            execSync(`adb -s ${opts.capabilities.alwaysMatch["appium:udid"]} shell am force-stop io.appium.uiautomator2.server`);
-            execSync(`adb -s ${opts.capabilities.alwaysMatch["appium:udid"]} shell am force-stop io.appium.uiautomator2.server.test`);
-        } catch (e) {
-            console.warn("Failed to stop UiAutomator2 processes:", e.message);
-        }
+        const ADB_PATH = "/root/Android/platform-tools/adb"; // full path to adb
+        const UDID = opts.capabilities.alwaysMatch["appium:udid"];
 
-        // Restart the driver
-        resetDriver();
-        await new Promise((res) => setTimeout(res, 3000));
-        await getDriver();
-       // Backoff delay for safety
-       await new Promise((res) => setTimeout(res, 2000));
-  
-        console.log("✅ UiAutomator2 and Appium session successfully recovered.");
-    } catch (err) {
-        console.error("🔥 Critical failure in recoverAppiumSession:", err.message);
-        resetDriver();
+        try {
+            // Try clean deletion first
+            if (driver) {
+                try {
+                    await driver.deleteSession();
+                } catch (e) {
+                    console.warn("DeleteSession failed during recovery:", e.message);
+                }
+            }
+
+            // Kill UiAutomator2 processes on the device
+            try {
+                execSync(`${ADB_PATH} -s ${UDID} shell am force-stop io.appium.uiautomator2.server`);
+                execSync(`${ADB_PATH} -s ${UDID} shell am force-stop io.appium.uiautomator2.server.test`);
+                console.log("✅ UiAutomator2 processes stopped successfully.");
+            } catch (e) {
+                console.warn("Failed to stop UiAutomator2 processes:", e.message);
+            }
+
+            // Restart the driver
+            resetDriver();
+            await new Promise((res) => setTimeout(res, 3000));
+            await getDriver();
+
+            // Backoff delay for safety
+            await new Promise((res) => setTimeout(res, 2000));
+    
+            console.log("✅ UiAutomator2 and Appium session successfully recovered.");
+        } catch (err) {
+            console.error("🔥 Critical failure in recoverAppiumSession:", err.message);
+            resetDriver();
+        }
     }
-}
+
 
 
 
