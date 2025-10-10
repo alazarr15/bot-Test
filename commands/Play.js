@@ -29,7 +29,10 @@ if (!user || !user.phoneNumber) {
     return ctx.reply("🎮 Choose your game:", {
       reply_markup: {
         inline_keyboard: [
-          [{ text: "10 Birr", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=10` } }]
+          [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=10` } }],
+          [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=10` } }],
+          [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=10` } }],
+          [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=10` } }]
         ]
       }
     });

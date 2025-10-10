@@ -426,7 +426,10 @@ if (data.startsWith("guide_")) {
 
                         inline_keyboard: [
 
-                            [{ text: "10 Birr", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=10` } }]
+                            [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=10` } }],
+                            [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=10` } }],
+                            [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=10` } }],
+                            [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=10` } }]
                         ]
 
                     }
