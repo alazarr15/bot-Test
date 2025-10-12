@@ -5,6 +5,7 @@ const mongoose = require("mongoose");
 const { registrationInProgress } = require("./state/registrationState"); // Ensure this is imported
 const SmsMessage = require("../Model/SmsMessage"); // Import your SMS message model
 const Deposit = require("../Model/Deposit"); 
+const redis = require("../utils/redisClient");
 const { buildMainMenu } = require("../utils/menuMarkup");
 
 
@@ -191,6 +192,13 @@ if (depositState.step === "awaitingSMS") {
                 { $inc: updateInc, $set: { depositInProgress: null } },
                 { new: true, session }
             );
+
+         if (updatedUser) {
+                // 2. Update Redis with the new balance from the DB
+                await redis.set(`userBalance:${telegramId}`, updatedUser.balance.toString(), { EX: 60 }); 
+                await redis.set(`userBonusBalance:${telegramId}`, updatedUser.bonus_balance.toString(), { EX: 60 });
+            }
+
 
             // Update the status of the matching SMS message to prevent double-spending.
             await SmsMessage.updateOne(

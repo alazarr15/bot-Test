@@ -25,6 +25,7 @@
     "mongoose": "^8.10.1",
     "nodemon": "^3.1.10",
     "rate-limiter-flexible": "^7.1.1",
+    "redis": "^5.8.3",
     "telegraf": "^4.16.3",
     "telegraf-session-local": "^2.1.1",
     "webdriverio": "^9.19.1"

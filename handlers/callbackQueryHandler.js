@@ -3,6 +3,7 @@ const User = require("../Model/user");
 const Withdrawal = require("../Model/withdrawal");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 const { clearAllFlows } = require("../utils/flowUtils");
+const  redis  = require("../utils/redisClient.js");
 const { processTelebirrWithdrawal } = require('./telebirrWorker.js');
 const { getDriver, resetDriver } = require('./appiumService.js'); // 👈 Using the new service
 const { buildMainMenu,buildInstructionMenu } = require("../utils/menuMarkup");
@@ -10,6 +11,21 @@ const fs = require('fs'); // ADD THIS
 const path = require('path'); // ADD THIS
 // ... rest of your imports
 const telebirrWithdrawalQueue = [];
+
+
+    const refundAndCacheUpdate = async (telegramId, amount) => {
+        // 1. Atomically update DB and return the new document/balance
+        const user = await User.findOneAndUpdate(
+            { telegramId }, 
+            { $inc: { balance: amount } }, 
+            { new: true, select: 'balance' } // CRITICAL: Get the new balance value
+        );
+
+        if (user) {
+            // 2. Update Redis with the new balance from the DB
+            await redis.set(`userBalance:${telegramId}`, user.balance.toString(), { EX: 60 }); 
+        }
+    };
 
 const processQueue = (bot) => {
 
@@ -53,7 +69,7 @@ const processQueue = (bot) => {
                         
                         console.log(`Refunding ${amount} to user ${telegramId} due to failed withdrawal.`);
                         // Atomically add the amount back to the user's balance
-                        await User.findOneAndUpdate({ telegramId }, { $inc: { balance: amount } });
+                        await refundAndCacheUpdate(telegramId, amount); 
                     }
                     }
 
@@ -197,6 +213,11 @@ if (data.startsWith("withdraw_")) {
                     await User.updateOne({ telegramId }, { $unset: { withdrawalInProgress: 1 } });
                     return ctx.editMessageText("🚫 Failed to process your request. Your balance may have changed or is insufficient. Please try again.");
                 }
+
+                 
+            // 2. Update Redis with the new balance from the DB
+            await redis.set(`userBalance:${telegramId}`, updatedUser.balance.toString(), { EX: 60 }); 
+            
                 // ⭐ END OF DEDUCTION LOGIC ⭐
                 await ctx.editMessageText("⏳ ጥያቄዎ በሄደት ላይ ነው። ሲጠናቀቅ (1–3 ደቂቃ) ውስጥ እናሳውቃለን።",buildMainMenu(user));
 
