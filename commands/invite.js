@@ -26,18 +26,23 @@ module.exports = function (bot) {
       if (ctx.callbackQuery) await ctx.answerCbQuery();
 
       // IMPORTANT: Replace 'LuckyBingobot' with your actual bot's username!
-      const botUsername = 'LuckyBingobot'; 
-      const inviteLink = `https://t.me/${botUsername}?start=${telegramId}`;
+       const botUsername = 'Danbingobot';    
+       const inviteLink = `https://t.me/${botUsername}?start=${telegramId}`;
 
       // 1. The message content that your user will share
-      const shareMessage = `
-💰 *GO BINGO!* 🏆
-I'm earning rewards just by playing! Join me using my invite link below for a special bonus:
+     const shareMessage = (inviteLink) => `
+🎉 *Hey friends!* 🎉
 
-🔗 ${inviteLink}
+✨ Be one of the *early players* in *DAN BINGO* and claim your exclusive bonus!  
 
-Start playing today!
-      `;
+🎁 Special rewards are waiting — but only for a limited time!  
+
+🔗 Click here to join: ${inviteLink}
+
+Don’t wait — the fun and rewards are just a tap away! 🎲💸
+`;
+
+
 
       // 2. The special Telegram URL scheme to trigger the share sheet
       const telegramShareUrl = `tg://msg?text=${encodeURIComponent(shareMessage.trim())}`;
