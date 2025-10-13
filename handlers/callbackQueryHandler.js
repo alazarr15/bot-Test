@@ -622,10 +622,19 @@ if (depositState.step !== "selectMethod" || !depositState.amount) {
                 await ctx.answerCbQuery();
 
                 // IMPORTANT: Use your actual bot's username (e.g., Danbingobot)
-                const inviteLink = `https://t.me/Danbingobot?start=${telegramId}`;
+          const botUsername = 'Danbingobot';    
+         const inviteLink = `https://t.me/${botUsername}?start=${telegramId}`;
 
                 // 1. The message content your user will share
-                const shareMessageText = `🎉 Join Lucky Bingo and get a bonus when you register!`;
+                const shareMessageText = `🎉 *Hey friends!* 🎉
+
+✨ Be one of the *early players* in *DAN BINGO* and claim your exclusive bonus!  
+
+🎁 Special rewards are waiting — but only for a limited time!  
+
+🔗 Click here to join: ${inviteLink}
+
+Don’t wait — the fun and rewards are just a tap away! 🎲💸`;
                 // Include the link directly in the shared text for clarity
                 const fullShareMessage = `${shareMessageText}\n\n🔗 ${inviteLink}`;
                 
@@ -635,7 +644,7 @@ if (depositState.step !== "selectMethod" || !depositState.amount) {
                 // 3. The message sent to the user when they tap the "invite" callback button
                 const message = `
 🎉 *Invite & Earn!*
-Share Lucky Bingo with your friends and earn rewards when they join using your link.
+Share DAN Bingo with your friends and earn rewards when they join using your link.
 👤 *Your Invite Link:*
 \`${inviteLink}\`
 `;

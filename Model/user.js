@@ -5,6 +5,7 @@ const userSchema = new mongoose.Schema({
     type: Number,
     required: true,
     unique: true,
+    index: true,
   },
   username: {
     type: String,
@@ -29,10 +30,17 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  
   referralCount: {
     type: Number,
     default: 0,
   },
+   referrerId: {
+    // The Telegram ID of the user who invited this user (null if direct signup)
+    type: Number,
+    default: null, 
+    index: true,
+  },
   registrationInProgress: {
     type: Object,
     default: null,
