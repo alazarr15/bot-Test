@@ -459,10 +459,10 @@ if (data === "deposit" || /^deposit_\d+$/.test(data)) {
     }
 
     // Prompt deposit method
-    return ctx.reply("💰 የገንዘብ ማስገቢያ ዘዴ ይምረጡ:", {
+    return ctx.reply("💸 የገንዘብ ማስገቢያ ዘዴ ይምረጡ 👇", {
         reply_markup: {
             inline_keyboard: [
-                [{ text: "Manual", callback_data: "manual_deposit" }]
+                [{ text: "🧾 Manual", callback_data: "manual_deposit" }]
             ]
         }
     });
@@ -476,7 +476,7 @@ if (data === "manual_deposit") {
 
     // Set deposit state to get amount
     await User.updateOne({ telegramId }, { $set: { depositInProgress: { step: "getAmount" } } });
-    return ctx.reply("💵 እንዲሞላልዎት የሚፈልጉትን የገንዘብ መጠን ያስገቡ: (ለማቋረጥ /cancel ይንኩ)");
+    return ctx.reply("💵 እንዲሞላልዎት የሚፈልጉትን የገንዘብ መጠን ያስገቡ 👇\n\n❌ ለመሰረዝ /cancel ይንኩ");
 }
 
 // Handle payment method selection (CBE or Telebirr)
@@ -486,7 +486,8 @@ if (data === "payment_cbe" || data === "payment_telebirr") {
 
   // Strict validation for deposit flow
 if (!user || !user.depositInProgress) {
-    return ctx.answerCbQuery("🚫 No active deposit. Please start a new deposit.");
+  await ctx.answerCbQuery("⚠️ No active deposit found. Please start a new one 💰", { show_alert: true });
+  return buildMainMenu(user, ctx);
 }
 
 // Only allow selection if user already entered amount
@@ -637,7 +638,7 @@ Share Lucky Bingo with your friends and earn rewards when they join using your l
         return;
     });
 
-   
+  
 };
 
    

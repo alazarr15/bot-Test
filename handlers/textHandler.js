@@ -112,11 +112,11 @@ if (user && depositState) {
             { $set: { "depositInProgress.amount": roundedAmount, "depositInProgress.step": "selectMethod" } }
         );
 
-        return ctx.reply(`💰 የሚፈልጉት ${roundedAmount} ብር ለማስገባት ነው። እባክዎ የክፍያ ዘዴዎን ይምረጡ: (ለማቋረጥ /cancel ይጻፉ)`, {
+        return ctx.reply(`💸 የሚፈልጉት ${roundedAmount} ብር ለማስገባት ነው ✅\n\n👇 እባክዎ የክፍያ ዘዴዎን ይምረጡ።\n\n🚫 ለመቋረጥ /cancel ይጻፉ።`, {
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: "CBE to CBE", callback_data: "payment_cbe" }],
-                    [{ text: "Telebirr To Telebirr", callback_data: "payment_telebirr" }]
+                    [{ text: "🏦 CBE → CBE", callback_data: "payment_cbe" }],
+                    [{ text: "📱 Telebirr → Telebirr", callback_data: "payment_telebirr" }]
                 ],
             },
         });
