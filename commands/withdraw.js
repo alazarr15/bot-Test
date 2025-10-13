@@ -87,7 +87,7 @@ if (!winningGame) { // Check if a winning record was NOT found
                 callback_data: `withdraw_${bank.code}`
             }]);
 
-            return ctx.reply("💵 የገንዘብ ማውጣት ዘዴዎን ይምረጡ:", {
+            return ctx.reply("💸 የገንዘብ ማውጣት ዘዴዎን ይምረጡ  👇", {
                 reply_markup: {
                     inline_keyboard: keyboard
                 }
