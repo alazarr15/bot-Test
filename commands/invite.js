@@ -15,11 +15,11 @@ module.exports = function (bot) {
         const telegramId = ctx.from.id;
         const triggerType = ctx.callbackQuery ? 'Callback Action' : 'Command';
         
-        console.log(`[INVITE] - START - User ${telegramId} triggered /invite via ${triggerType}.`);
+        //console.log(`[INVITE] - START - User ${telegramId} triggered /invite via ${triggerType}.`);
 
         try {
             // --- STEP 1: Rate Limiting ---
-            console.log(`[INVITE] - STEP 1 - Starting rate limit checks for ${telegramId}.`);
+        //    console.log(`[INVITE] - STEP 1 - Starting rate limit checks for ${telegramId}.`);
             
             // ✅ Rate limit: 1 request per second per user
             await userRateLimiter.consume(telegramId);
@@ -27,17 +27,17 @@ module.exports = function (bot) {
             // ✅ Rate limit: 200 requests per second globally
             await globalRateLimiter.consume("global");
 
-            console.log(`[INVITE] - STEP 1 - Rate limits passed for ${telegramId}.`);
+        //    console.log(`[INVITE] - STEP 1 - Rate limits passed for ${telegramId}.`);
 
             if (ctx.callbackQuery) {
                 await ctx.answerCbQuery();
-                console.log(`[INVITE] - Callback query answered for ${telegramId}.`);
+        //        console.log(`[INVITE] - Callback query answered for ${telegramId}.`);
             }
 
             // --- STEP 2: Link Generation ---
             const botUsername = 'Danbingobot';
             const inviteLink = `https://t.me/${botUsername}?start=${telegramId}`;
-            console.log(`[INVITE] - STEP 2 - Generated invite link: ${inviteLink}`);
+        //    console.log(`[INVITE] - STEP 2 - Generated invite link: ${inviteLink}`);
 
             // 1. The message content that your user will share
             const shareMessageContent = `
@@ -55,7 +55,7 @@ Don’t wait — the fun and rewards are just a tap away! 🎲💸
             // 2. The special Telegram URL scheme to trigger the share sheet
             // NOTE: The shareMessage must be URL encoded.
             const telegramShareUrl = `tg://msg?text=${encodeURIComponent(shareMessageContent.trim())}`;
-            console.log(`[INVITE] - STEP 2 - Telegram Share URL created.`);
+        //    console.log(`[INVITE] - STEP 2 - Telegram Share URL created.`);
 
             // 3. The message that is sent to the user when they hit /invite or the button
             const replyMessage = `
@@ -80,11 +80,11 @@ You can earn rewards by inviting friends! Click the **Invite Friends** button be
                 }
             };
             
-            console.log(`[INVITE] - STEP 3 - Sending final reply to ${telegramId}.`);
+        //    console.log(`[INVITE] - STEP 3 - Sending final reply to ${telegramId}.`);
 
             const result = await ctx.replyWithMarkdown(replyMessage.trim(), replyOptions);
             
-            console.log(`[INVITE] - SUCCESS - Reply sent successfully to ${telegramId}. Message ID: ${result.message_id}`);
+        //    console.log(`[INVITE] - SUCCESS - Reply sent successfully to ${telegramId}. Message ID: ${result.message_id}`);
             return result;
             
         } catch (err) {
@@ -92,14 +92,14 @@ You can earn rewards by inviting friends! Click the **Invite Friends** button be
             // --- ERROR HANDLING ---
             if (err && err.msBeforeNext) {
                 // Rate Limit Error
-                console.warn(`[INVITE] - RATE LIMIT - User ${telegramId} hit rate limit. Wait time: ${err.msBeforeNext}ms.`);
+        //        console.warn(`[INVITE] - RATE LIMIT - User ${telegramId} hit rate limit. Wait time: ${err.msBeforeNext}ms.`);
                 return ctx.reply("⚠️ Please wait a second before trying again.");
             }
             
             // All Other Errors (The likely source of "Something went wrong")
-            console.error(`[INVITE] - ❌ CRITICAL ERROR for user ${telegramId} (${triggerType}):`);
+        //    console.error(`[INVITE] - ❌ CRITICAL ERROR for user ${telegramId} (${triggerType}):`);
             // Log the full error stack for maximum debugging information
-            console.error(err); 
+        //    console.error(err); 
             
             return ctx.reply("🚫 Something went wrong. Please try again later. (Error logged on server)");
         }
