@@ -28,13 +28,13 @@ if (!user || !user.phoneNumber) {
     }
   });
 }
-            // ✅ CORRECTED: Clear all other in-progress flows before starting this one.
+            // ✅ CORRECTED: Clear all other in-progress flows before starting this one
             await clearAllFlows(telegramId);
             
-            return ctx.reply("💰 የገንዘብ ማስገቢያ ዘዴ ይምረጡ:", {
+            return ctx.reply("💸 የገንዘብ ማስገቢያ ዘዴ ይምረጡ 👇", {
                 reply_markup: {
                     inline_keyboard: [
-                        [{ text: "Manual", callback_data: "manual_deposit" }],
+                        [{ text: " 🧾 Manual", callback_data: "manual_deposit" }],
                     ]
                 }
             });

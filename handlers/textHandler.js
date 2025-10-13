@@ -113,11 +113,11 @@ if (user && depositState) {
             { $set: { "depositInProgress.amount": roundedAmount, "depositInProgress.step": "selectMethod" } }
         );
 
-        return ctx.reply(`💰 የሚፈልጉት ${roundedAmount} ብር ለማስገባት ነው። እባክዎ የክፍያ ዘዴዎን ይምረጡ: (ለማቋረጥ /cancel ይጻፉ)`, {
+        return ctx.reply(`💸 የሚፈልጉት ${roundedAmount} ብር ለማስገባት ነው ✅\n\n👇 እባክዎ የክፍያ ዘዴዎን ይምረጡ።\n\n🚫 ለመቋረጥ /cancel ይጻፉ።`, {
             reply_markup: {
                 inline_keyboard: [
-                    [{ text: "CBE to CBE", callback_data: "payment_cbe" }],
-                    [{ text: "Telebirr To Telebirr", callback_data: "payment_telebirr" }]
+                    [{ text: "🏦 CBE → CBE", callback_data: "payment_cbe" }],
+                    [{ text: "📱 Telebirr → Telebirr", callback_data: "payment_telebirr" }]
                 ],
             },
         });
@@ -227,7 +227,7 @@ if (depositState.step === "awaitingSMS") {
             session.endSession();
 
             // --- NEW SUCCESS MESSAGE START ---
-            let successMessage = `✅ ወደ አካውንትዎ ${claimedAmount} ETB ገቢ ሆኑአል፡፡`;
+            let successMessage = `🎉 ወደ አካውንትዎ ${claimedAmount} ETB ገቢ ሆኑአል፡፡`;
 
             if (bonusToAward > 0) {
                 successMessage += `\n🎁 የ **${bonusToAward} ETB  ተጨማሪ ቦነስ አግኝተዋል**!`;
@@ -236,7 +236,12 @@ if (depositState.step === "awaitingSMS") {
             successMessage += `\n**Main Balance** is: *${updatedUser.balance} ብር*.`;
             successMessage += `\n**ቦነስ Balance** is: *${updatedUser.bonus_balance} ብር*.`;
             
-            return ctx.reply(successMessage, { parse_mode: 'Markdown' });
+           // Send the success message first
+await ctx.reply(successMessage, { parse_mode: 'Markdown' });
+
+// Send the main menu explicitly
+await ctx.reply("🔄 ዋና ምናሌዎ:", buildMainMenu(updatedUser));
+
             // --- NEW SUCCESS MESSAGE END ---
             
         } catch (error) {
