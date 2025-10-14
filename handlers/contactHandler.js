@@ -4,7 +4,7 @@ const { buildMainMenu } = require("../utils/menuMarkup");
 const { userRateLimiter } = require("../Limit/global");
 
 // --- Bonus System Configuration (Only referrer gets the bonus) ---
-const REFERRER_BONUS = 5;   // The amount to credit the inviter (referrer)
+const REFERRER_BONUS = 0;   // The amount to credit the inviter (referrer)
 
 module.exports = function (bot) {
     bot.on("contact", async (ctx) => {
