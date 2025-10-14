@@ -7,6 +7,7 @@ const SmsMessage = require("../Model/SmsMessage"); // Import your SMS message mo
 const Deposit = require("../Model/Deposit"); 
 const redis = require("../utils/redisClient");
 const { buildMainMenu } = require("../utils/menuMarkup");
+const BonusSettings = require("../Model/BonusSettings");
 
 
 module.exports = function (bot) {
@@ -165,9 +166,24 @@ if (depositState.step === "awaitingSMS") {
         session.startTransaction();
 
         // --- NEW BONUS LOGIC START ---
-        const BONUS_THRESHOLD = 50; // Birr
-        const BONUS_AMOUNT = 0; // Birr
+        let BONUS_THRESHOLD = 50; // Birr
+        let BONUS_AMOUNT = 0; // Birr
         let bonusToAward = 0;
+
+        try {
+            // Fetch deposit settings (assuming depositBonusThreshold and depositBonusAmount fields)
+            const settings = await BonusSettings.findOne({ settingId: 'GLOBAL_BONUS_CONFIG' });
+            
+            if (settings) {
+                // Update local variables with DB values, using defaults if DB fields are missing
+                BONUS_THRESHOLD = settings.depositBonusThreshold || BONUS_THRESHOLD;
+                BONUS_AMOUNT = settings.depositBonusAmount || BONUS_AMOUNT;
+            }
+        } catch (dbErr) {
+            console.error("Error fetching deposit bonus settings:", dbErr);
+            // Defaults will be used if the database is unreachable
+        }
+
 
         if (claimedAmount >= BONUS_THRESHOLD) {
             bonusToAward = BONUS_AMOUNT;
@@ -237,10 +253,8 @@ if (depositState.step === "awaitingSMS") {
             successMessage += `\n**ቦነስ Balance** is: *${updatedUser.bonus_balance} ብር*.`;
             
            // Send the success message first
-await ctx.reply(successMessage, { parse_mode: 'Markdown' });
+return ctx.reply(successMessage, { parse_mode: 'Markdown' });
 
-// Send the main menu explicitly
-await ctx.reply("🔄 ዋና ምናሌዎ:", buildMainMenu(updatedUser));
 
             // --- NEW SUCCESS MESSAGE END ---
             

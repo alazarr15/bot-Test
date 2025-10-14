@@ -2,9 +2,9 @@ const User = require("../Model/user");
 const { generateUniqueAccountNumber } = require("../utils/generateAccountNumber");
 const { buildMainMenu } = require("../utils/menuMarkup");
 const { userRateLimiter } = require("../Limit/global");
+const BonusSettings = require("../Model/BonusSettings");
 
 // --- Bonus System Configuration (Only referrer gets the bonus) ---
-const REFERRER_BONUS = 0;   // The amount to credit the inviter (referrer)
 
 module.exports = function (bot) {
     bot.on("contact", async (ctx) => {
@@ -21,6 +21,17 @@ module.exports = function (bot) {
         // Find the user and check the registrationInProgress field
         const user = await User.findOne({ telegramId });
         
+ let REFERRER_BONUS = 0; // Declare REFERRER_BONUS as a mutable variable (let)
+        try {
+            const settings = await BonusSettings.findOne({ settingId: 'GLOBAL_BONUS_CONFIG' });
+            // Assign the DB value (initiationBonus) to REFERRER_BONUS
+            REFERRER_BONUS = settings ? (settings.initiationBonus || 0) : 0; 
+        } catch (dbErr) {
+            console.error("Error fetching initiationBonus for referral:", dbErr);
+            // Default REFERRER_BONUS remains 0 on error
+        }
+
+
         // Safety check: Ensure the user is in the middle of registration
         if (!user || !user.registrationInProgress) {
             return ctx.reply("🚫 Please start the registration process by clicking the 'Register' button first.");
@@ -50,7 +61,7 @@ module.exports = function (bot) {
                 updateFields,
                 { new: true, upsert: false }
             );
-
+  
             // --- 2. Process Referral Payout (If a referrer exists) ---
             if (updatedUser.referrerId) {
                 const referrerId = updatedUser.referrerId;
@@ -78,10 +89,9 @@ module.exports = function (bot) {
                      // Fetch referrer's current data to get the updated count for the message
                      const referrerUser = await User.findOne({ telegramId: referrerId });
 
-                     await bot.telegram.sendMessage(
+                    await bot.telegram.sendMessage(
                         referrerId,
-                        `🥳 **Bonus Earned!** Your friend, ${refereeDisplayName}, has completed registration.\n\n` + 
-                        `You have been credited **${REFERRER_BONUS} Birr** to your bonus balance.\nTotal successful referrals: **${referrerUser.referralCount}**`,
+                        `🙏 Thanks for referring ${refereeDisplayName}! The referral bonus is temporarily paused — we wll notify you once we start again.`,
                         { parse_mode: 'Markdown' }
                     );
                     console.log(`[Referral Payout] Credited ${REFERRER_BONUS} Birr to referrer ${referrerId}`);
@@ -95,9 +105,7 @@ module.exports = function (bot) {
 
             // Final registration message for the new user
             return ctx.reply(
-                `🎉 Registration complete!\n` +
-                (updatedUser.referrerId ? `_You joined via an invitation. Your inviter has now earned a **${REFERRER_BONUS} Birr** bonus._\n` : '') +
-                `\nYour account number is: *${accountNumber}*`,
+                `🎉 Registration complete!\n` + `\nYour account number is: *${accountNumber}*`,
                 {
                     ...buildMainMenu(updatedUser),
                     parse_mode: "Markdown"
