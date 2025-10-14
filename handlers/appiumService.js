@@ -134,46 +134,90 @@ function resetDriver() {
     }
 
 
-    async function recoverAppiumSession() {
-        console.log("🧯 Recovering from UiAutomator2 crash...");
+        async function recoverAppiumSession() {
+            console.log("🧯 Recovering from UiAutomator2 crash...");
+            const fs = require("fs");
+            const { execSync } = require("child_process");
 
-        const execSync = require("child_process").execSync;
-        const ADB_PATH = "/root/Android/platform-tools/adb"; // full path to adb
-        const UDID = opts.capabilities.alwaysMatch["appium:udid"];
+            // Force PATH to include adb location
+            process.env.PATH = `/root/Android/platform-tools:${process.env.PATH}`;
 
-        try {
-            // Try clean deletion first
-            if (driver) {
+            // List of possible adb locations
+            const possibleAdbPaths = [
+                "/root/Android/platform-tools/adb",
+                "/usr/bin/adb",
+                "/usr/local/bin/adb",
+                "adb" // fallback to PATH
+            ];
+
+            let ADB_CMD = null;
+            for (const p of possibleAdbPaths) {
                 try {
-                    await driver.deleteSession();
+                    if (fs.existsSync(p) || p === "adb") {
+                        execSync(`${p} version`, { stdio: "ignore" });
+                        ADB_CMD = p;
+                        break;
+                    }
                 } catch (e) {
-                    console.warn("DeleteSession failed during recovery:", e.message);
+                    // skip if not usable
                 }
             }
 
-            // Kill UiAutomator2 processes on the device
-            try {
-                execSync(`${ADB_PATH} -s ${UDID} shell am force-stop io.appium.uiautomator2.server`);
-                execSync(`${ADB_PATH} -s ${UDID} shell am force-stop io.appium.uiautomator2.server.test`);
-                console.log("✅ UiAutomator2 processes stopped successfully.");
-            } catch (e) {
-                console.warn("Failed to stop UiAutomator2 processes:", e.message);
+            if (!ADB_CMD) {
+                console.warn("⚠️ recoverAppiumSession: no usable adb found. Skipping device-level kill; will try to recreate session anyway.");
+            } else {
+                console.log(`Using adb at: ${ADB_CMD}`);
             }
 
-            // Restart the driver
-            resetDriver();
-            await new Promise((res) => setTimeout(res, 3000));
-            await getDriver();
+            const UDID = opts.capabilities.alwaysMatch["appium:udid"];
 
-            // Backoff delay for safety
-            await new Promise((res) => setTimeout(res, 2000));
-    
-            console.log("✅ UiAutomator2 and Appium session successfully recovered.");
-        } catch (err) {
-            console.error("🔥 Critical failure in recoverAppiumSession:", err.message);
-            resetDriver();
+            try {
+                if (driver) {
+                    try { await driver.deleteSession(); } catch (e) { console.warn("DeleteSession failed:", e.message); }
+                }
+
+                if (ADB_CMD) {
+                    try {
+                        execSync(`${ADB_CMD} -s ${UDID} shell am force-stop io.appium.uiautomator2.server`, { timeout: 5000 });
+                        execSync(`${ADB_CMD} -s ${UDID} shell am force-stop io.appium.uiautomator2.server.test`, { timeout: 5000 });
+                        console.log("✅ UiAutomator2 processes stopped successfully.");
+                    } catch (e) {
+                        console.warn("Failed to stop UiAutomator2 processes:", e.message);
+                    }
+
+                    try {
+                        if (UDID.includes(":")) {
+                            execSync(`${ADB_CMD} connect ${UDID}`, { timeout: 5000 });
+                            console.log("🔌 Attempted adb connect to device:", UDID);
+                        }
+                    } catch (e) {
+                        console.debug("adb connect failed (non-fatal):", e.message);
+                    }
+                }
+
+                resetDriver();
+                await new Promise(res => setTimeout(res, 2500));
+
+                for (let i = 1; i <= 2; i++) {
+                    try {
+                        await getDriver();
+                        break;
+                    } catch (e) {
+                        console.warn(`Attempt ${i} to create new driver failed:`, e.message);
+                        await new Promise(res => setTimeout(res, 1500 * i));
+                    }
+                }
+
+                await new Promise(res => setTimeout(res, 1000));
+                console.log("✅ UiAutomator2 and Appium session successfully recovered.");
+            } catch (err) {
+                console.error("🔥 Critical failure in recoverAppiumSession:", err.message || err);
+                resetDriver();
+                throw err;
+            }
         }
-    }
+
+
 
 
 
@@ -280,5 +324,6 @@ module.exports = {
     ensureDeviceIsUnlocked,
     SELECTORS,
     TELEBIRR_LOGIN_PIN,
-    safeAction 
+    safeAction,
+    recoverAppiumSession
 };
