@@ -66,6 +66,9 @@ async function processTelebirrWithdrawal({ account_number, amount}) {
             console.log("✅ Confirming payment...");
             const confirmPayBtn = await driver.$(SELECTORS.CONFIRM_PAY_BTN);
             await confirmPayBtn.click();
+
+            console.log("🔑 Entering transaction PIN...");
+            await enterPin(TELEBIRR_LOGIN_PIN, true);
             
             // 9. Wait for the transaction to finish and the final confirmation button to appear.
             const finishedBtn = await driver.$(SELECTORS.TRANSACTION_FINISHED_BTN);
@@ -73,12 +76,6 @@ async function processTelebirrWithdrawal({ account_number, amount}) {
             console.log("🎉 Transaction completed successfully! Clicking final confirmation.");
             await finishedBtn.click();
         });
-
-        // 8. Enter the transaction PIN to finalize the transfer.
-        // CRITICAL FIX: The enterPin exported is already wrapped in safeAction and manages the driver.
-        // It should be called *outside* the main safeAction block, without a driver argument.
-        console.log("🔑 Entering transaction PIN (Protected by its own safeAction wrapper)...");
-        await enterPin(TELEBIRR_LOGIN_PIN, true);
         
         console.log("✨ Telebirr withdrawal task finished.");
         
