@@ -304,7 +304,7 @@ async function navigateToHome() {
                     
                     // Force the app to the foreground (Activates if backgrounded/crashed)
                     await driver.activateApp(appPackage);
-                    await driver.pause(2000); 
+                    await driver.pause(6000); 
 
                     // Aggressively try to dismiss potential modals/popups
                     for (let i = 0; i < 2; i++) {
