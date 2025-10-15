@@ -30,7 +30,7 @@ const opts = {
             "appium:noReset": true,
             "appium:newCommandTimeout": 3600,
             "appium:adbExecTimeout": 120000,
-            "uiautomator2ServerInstallTimeout": 120000   
+            "appium:uiautomator2ServerInstallTimeout": 120000   
         }
     }
 };
