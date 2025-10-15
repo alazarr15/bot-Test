@@ -29,7 +29,8 @@ const opts = {
             "appium:appActivity": "com.huawei.module_basic_ui.splash.LauncherActivity", 
             "appium:noReset": true,
             "appium:newCommandTimeout": 3600,
-            "appium:adbExecTimeout": 120000
+            "appium:adbExecTimeout": 120000,
+            "uiautomator2ServerInstallTimeout": 120000   
         }
     }
 };
