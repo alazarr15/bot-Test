@@ -2,7 +2,7 @@
 // It is designed to be called by a separate handler, which manages the queue and driver state.
 
 // Import necessary functions, including the critical safeAction
-const { navigateToHome, enterPinRaw, SELECTORS, TELEBIRR_LOGIN_PIN, safeAction } = require("./appiumService.js");
+const { navigateToHome, enterPin, SELECTORS, TELEBIRR_LOGIN_PIN, safeAction } = require("./appiumService.js");
 
 /**
  * Executes the complete "send money" workflow on the Telebirr app.
