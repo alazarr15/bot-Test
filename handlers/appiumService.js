@@ -50,23 +50,23 @@ const opts = {
 
 // Centralized Selectors
 const SELECTORS = {
-    LOGIN_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
-    LOGIN_PIN_KEYPAD: {
-        "0": "id=cn.tydic.ethiopay:id/tv_input_0", "1": "id=cn.tydic.ethiopay:id/tv_input_1",
-        "2": "id=cn.tydic.ethiopay:id/tv_input_2", "3": "id=cn.tydic.ethiopay:id/tv_input_3",
-        "4": "id=cn.tydic.ethiopay:id/tv_input_4", "5": "id=cn.tydic.ethiopay:id/tv_input_5",
-        "6": "id=cn.tydic.ethiopay:id/tv_input_6", "7": "id=cn.tydic.ethiopay:id/tv_input_7",
-        "8": "id=cn.tydic.ethiopay:id/tv_input_8", "9": "id=cn.tydic.ethiopay:id/tv_input_9",
-    },
-    MAIN_PAGE_CONTAINER: "id=cn.tydic.ethiopay:id/rl_function_container",
-    // This selector is very specific, but we'll use it to check for deep-linked screens
-    SEND_MONEY_BTN: 'android=new UiSelector().className("android.view.ViewGroup").clickable(true).instance(0)',
-    RECIPIENT_PHONE_INPUT: "id=cn.tydic.ethiopay:id/et_input",
-    RECIPIENT_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
-    AMOUNT_INPUT: "id=cn.tydic.ethiopay:id/et_amount",
-    CONFIRM_PAY_BTN: "id=cn.tydic.ethiopay:id/confirm",
-    TRANSACTION_PIN_KEYPAD: (digit) => `android=new UiSelector().resourceId("cn.tydic.ethiopay:id/tv_key").text("${digit}")`,
-    TRANSACTION_FINISHED_BTN: "id=cn.tydic.ethiopay:id/btn_confirm",
+    LOGIN_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
+    LOGIN_PIN_KEYPAD: {
+        "0": "id=cn.tydic.ethiopay:id/tv_input_0", "1": "id=cn.tydic.ethiopay:id/tv_input_1",
+        "2": "id=cn.tydic.ethiopay:id/tv_input_2", "3": "id=cn.tydic.ethiopay:id/tv_input_3",
+        "4": "id=cn.tydic.ethiopay:id/tv_input_4", "5": "id=cn.tydic.ethiopay:id/tv_input_5",
+        "6": "id=cn.tydic.ethiopay:id/tv_input_6", "7": "id=cn.tydic.ethiopay:id/tv_input_7",
+        "8": "id=cn.tydic.ethiopay:id/tv_input_8", "9": "id=cn.tydic.ethiopay:id/tv_input_9",
+    },
+    MAIN_PAGE_CONTAINER: "id=cn.tydic.ethiopay:id/rl_function_container",
+    SEND_MONEY_BTN: 'android=new UiSelector().className("android.view.ViewGroup").clickable(true).instance(0)',
+    SEND_MONEY_INDIVIDUAL_BTN: 'android=new UiSelector().className("android.view.ViewGroup").clickable(true).instance(0)',
+    RECIPIENT_PHONE_INPUT: "id=cn.tydic.ethiopay:id/et_input",
+    RECIPIENT_NEXT_BTN: "id=cn.tydic.ethiopay:id/btn_next",
+    AMOUNT_INPUT: "id=cn.tydic.ethiopay:id/et_amount",
+    CONFIRM_PAY_BTN: "id=cn.tydic.ethiopay:id/confirm",
+    TRANSACTION_PIN_KEYPAD: (digit) => `android=new UiSelector().resourceId("cn.tydic.ethiopay:id/tv_key").text("${digit}")`,
+    TRANSACTION_FINISHED_BTN: "id=cn.tydic.ethiopay:id/btn_confirm",
 };
 
 // --- Driver Management ---
