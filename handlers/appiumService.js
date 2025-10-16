@@ -10,6 +10,9 @@ if (!TELEBIRR_LOGIN_PIN) {
     throw new Error("Missing required environment variable: TELEBIRR_LOGIN_PIN.");
 }
 
+// Global constant for the critical UIA2 crash error message
+const UIA2_CRASH_MESSAGE = "instrumentation process is not running (probably crashed)";
+
 // Centralized Appium options
 const opts = {
     protocol: 'http',
@@ -26,13 +29,18 @@ const opts = {
             "appium:automationName": "UiAutomator2",
             "appium:appPackage": "cn.tydic.ethiopay",
             "appium:appActivity": "com.huawei.module_basic_ui.splash.LauncherActivity",
-            "appium:noReset": true,
+            "appium:noReset": true, // Keeping 'noReset' for performance, but requires robust navigation.
             "appium:newCommandTimeout": 3600,
             "appium:adbExecTimeout": 120000,
-            "appium:uiautomator2ServerLaunchTimeout": 180000, // Wait 3 minutes for UIA2 to launch
-            "appium:instrumentationTimeout": 180000,
-            "appium:uiautomator2ServerInstallTimeout": 240000,
-            "appium:disableWindowAnimation": true, // Speeds up test execution and reduces render strain
+            
+            // --- Stability Improvements for UIA2 ---
+            "appium:uiautomator2ServerLaunchTimeout": 240000, // Increased from 180s
+            "appium:instrumentationTimeout": 240000, // Increased from 180s
+            "appium:uiautomator2ServerInstallTimeout": 300000, // Increased from 240s
+            "appium:enforceAppInstall": true, // Ensures UIA2/app is properly installed
+            // --- End Stability Improvements ---
+            
+            "appium:disableWindowAnimation": true, 
             "appium:ignoreHiddenApiPolicyError": true
         }
     }
@@ -86,12 +94,15 @@ async function getDriver() {
         if (needsNewSession) {
             if (driver) {
                 try {
+                    // Always try to delete the old session cleanly
                     await driver.deleteSession();
                 } catch (e) {
-                    console.error("Error cleaning old driver session:", e.message);
+                    // Ignore errors during cleanup of a possibly dead session
+                    console.error("Error cleaning old driver session (safe to ignore if session was already dead):", e.message);
                 }
             }
 
+            // Create a new session
             driver = await wdio.remote(opts);
             console.log(`✅ Started new Appium session (id: ${driver.sessionId}).`);
         }
@@ -105,34 +116,60 @@ async function getDriver() {
 }
 
 function resetDriver() {
-    console.warn("🔴 Resetting driver due to a critical error.");
+    console.warn("🔴 Resetting driver due to a critical error. Next call to getDriver() will create new session.");
     driver = null;
 }
 
 
 async function safeAction(actionFn) {
+    let d;
+    
+    // --- Attempt 1 ---
     try {
-        const d = await getDriver();
+        d = await getDriver();
         return await actionFn(d);
     } catch (err) {
-        if (err.message && err.message.includes("invalid session id")) {
-            console.warn("🔄 Session died. Reconnecting...");
+        let shouldRetry = false;
+
+        // 1. Handle Critical UIA2 Crash
+        if (err.message && err.message.includes(UIA2_CRASH_MESSAGE)) {
+            console.error(`🚨 Critical UIA2 Crash Detected on attempt 1. Resetting driver.`);
+            resetDriver(); 
+            shouldRetry = true;
+        } 
+        // 2. Handle Invalid Session ID (Soft Failure)
+        else if (err.message && err.message.includes("invalid session id")) {
+            console.warn("🔄 Session died on attempt 1. Reconnecting...");
             resetDriver();
-            const d = await getDriver();
-            return await actionFn(d); // retry once
+            shouldRetry = true;
+        } 
+        
+        // If it's a non-retryable error (e.g., element not found within timeout)
+        if (!shouldRetry) {
+            throw err;
         }
+    }
+
+    // --- Attempt 2 (Retry after reset) ---
+    try {
+        console.log("...Attempting action retry after driver reset.");
+        d = await getDriver(); // This will force a new session to be created
+        return await actionFn(d);
+    } catch (err) {
+        // If the retry fails, it's a fatal and unrecoverable error.
+        console.error("❌ Action retry failed, even after session reset.", err.message);
         throw err;
     }
 }
 
 
-
 // --- Helper Functions ---
 
-async function isDisplayedWithin(driver, selector, timeout = 30000) {
+async function isDisplayedWithin(driver, selector, timeout = 10000) {
     try {
         const element = await driver.$(selector);
-        await element.waitForDisplayed({ timeout });
+        // Note: Using a shorter, specific timeout here is good practice in navigation logic
+        await element.waitForDisplayed({ timeout }); 
         return true;
     } catch (e) {
         return false;
@@ -185,7 +222,6 @@ async function enterPin(pin, isTransactionPin = false) {
             await driver.pause(1000); // Wait for the app to fully load/resume
 
             // 2. CHECK: Handle Deep-Linked Screen (e.g., Send Money Button check)
-            // This is necessary because a deep-linked screen could appear even if the app resumes.
             if (await isDisplayedWithin(driver, SELECTORS.SEND_MONEY_BTN, 3000)) {
                 console.log("⚠️ Detected a deep-linked screen (e.g., Send Money). Trying back navigation to clear it.");
                 await driver.back();
@@ -215,7 +251,6 @@ async function enterPin(pin, isTransactionPin = false) {
             }
 
             // 5. CRITICAL FINAL CHECK: App resumed on Home Screen, bypassing login elements.
-            // This handles the "Recent Apps" scenario where the app was already logged in and skipped the login elements.
             if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 3000)) {
                 console.log("✅ Activation successful. Resumed directly on home screen (Logged In).");
                 return;
@@ -256,5 +291,6 @@ module.exports = {
     enterPin,
     ensureDeviceIsUnlocked,
     SELECTORS,
-    TELEBIRR_LOGIN_PIN
+    TELEBIRR_LOGIN_PIN, 
+    safeAction
 };
