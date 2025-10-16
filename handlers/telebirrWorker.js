@@ -95,3 +95,9 @@ async function processTelebirrWithdrawal({ account_number, amount}) {
 module.exports = {
     processTelebirrWithdrawal
 };
+
+
+
+
+
+
