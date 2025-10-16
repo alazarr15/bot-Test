@@ -43,7 +43,7 @@ const opts = {
             // --- End Stability Improvements ---
             
             "appium:disableWindowAnimation": true, 
-            "appium:ignoreHiddenApiPolicyError": true
+            
         }
     }
 };
