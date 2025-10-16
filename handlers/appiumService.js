@@ -31,6 +31,7 @@ const opts = {
             "appium:adbExecTimeout": 120000,
             "appium:uiautomator2ServerLaunchTimeout": 180000, // Wait 3 minutes for UIA2 to launch
             "appium:instrumentationTimeout": 180000,
+            "appium:uiautomator2ServerInstallTimeout": 240000,
             "appium:disableWindowAnimation": true, // Speeds up test execution and reduces render strain
             "appium:ignoreHiddenApiPolicyError": true
         }
