@@ -10,17 +10,13 @@ if (!TELEBIRR_LOGIN_PIN) {
     throw new Error("Missing required environment variable: TELEBIRR_LOGIN_PIN.");
 }
 
-// Global constant for the critical UIA2 crash error message
-const UIA2_CRASH_MESSAGE = "instrumentation process is not running (probably crashed)";
-
 // Centralized Appium options
 const opts = {
     protocol: 'http',
     hostname: '188.245.100.132', // Appium server host
     port: 4723,
     path: '/',
-    // Increased connection timeout for new session creation attempts
-    connectionRetryTimeout: 300000,
+    connectionRetryTimeout: 240000,
     connectionRetryCount: 1,
     capabilities: {
         alwaysMatch: {
@@ -30,22 +26,9 @@ const opts = {
             "appium:automationName": "UiAutomator2",
             "appium:appPackage": "cn.tydic.ethiopay",
             "appium:appActivity": "com.huawei.module_basic_ui.splash.LauncherActivity",
-            "appium:noReset": true, // Keeping 'noReset' for performance, but requires robust navigation.
-            "appium:disableHiddenApiPolicy": false,
-            "appium:ignoreHiddenApiPolicyError": true,
+            "appium:noReset": true,
             "appium:newCommandTimeout": 3600,
-            "appium:adbExecTimeout": 120000,
-            "appium:noSign": true,
-
-            // --- Stability Improvements for UIA2 ---
-            "appium:uiautomator2ServerLaunchTimeout": 240000, // Increased from 180s
-            "appium:instrumentationTimeout": 240000, // Increased from 180s
-            "appium:uiautomator2ServerInstallTimeout": 300000, // Increased from 240s
-            "appium:enforceAppInstall": true, // Ensures UIA2/app is properly installed
-            // --- End Stability Improvements ---
-
-            "appium:disableWindowAnimation": true,
-
+            "appium:adbExecTimeout": 120000
         }
     }
 };
@@ -83,6 +66,7 @@ async function getDriver() {
             needsNewSession = true;
         } else {
             try {
+                // Quick check to see if session is still valid
                 await driver.status();
                 if (!driver.sessionId) {
                     console.warn("⚠️ Driver exists but no sessionId. Marking for reconnect...");
@@ -99,7 +83,7 @@ async function getDriver() {
                 try {
                     await driver.deleteSession();
                 } catch (e) {
-                    console.error("Error cleaning old driver session (safe to ignore if session was already dead):", e.message);
+                    console.error("Error cleaning old driver session:", e.message);
                 }
             }
 
@@ -116,55 +100,31 @@ async function getDriver() {
 }
 
 function resetDriver() {
-    console.warn("🔴 Resetting driver due to a critical error. Next call to getDriver() will create new session.");
+    console.warn("🔴 Resetting driver due to a critical error.");
     driver = null;
 }
 
+
 async function safeAction(actionFn) {
-    let d;
-
-    // --- Attempt 1 ---
     try {
-        d = await getDriver();
+        const d = await getDriver();
         return await actionFn(d);
     } catch (err) {
-        let shouldRetry = false;
-
-        // 1. Handle Critical UIA2 Crash
-        if (err.message && err.message.includes(UIA2_CRASH_MESSAGE)) {
-            console.error(`🚨 Critical UIA2 Crash Detected on attempt 1. Resetting driver.`);
+        if (err.message && err.message.includes("invalid session id")) {
+            console.warn("🔄 Session died. Reconnecting...");
             resetDriver();
-            shouldRetry = true;
+            const d = await getDriver();
+            return await actionFn(d); // retry once
         }
-        // 2. Handle Invalid Session ID (Soft Failure)
-        else if (err.message && err.message.includes("invalid session id")) {
-            console.warn("🔄 Session died on attempt 1. Reconnecting...");
-            resetDriver();
-            shouldRetry = true;
-        }
-
-        // If it's a non-retryable error (e.g., element not found within timeout)
-        if (!shouldRetry) {
-            throw err;
-        }
-    }
-
-    // --- Attempt 2 (Retry after reset) ---
-    try {
-        console.log("...Attempting action retry after driver reset.");
-        d = await getDriver(); // This will force a new session to be created
-        return await actionFn(d);
-    } catch (err) {
-        // If the retry fails, it's a fatal and unrecoverable error.
-        console.error("❌ Action retry failed, even after session reset.", err.message);
         throw err;
     }
 }
 
 
+
 // --- Helper Functions ---
 
-async function isDisplayedWithin(driver, selector, timeout = 20000) {
+async function isDisplayedWithin(driver, selector, timeout = 30000) {
     try {
         const element = await driver.$(selector);
         await element.waitForDisplayed({ timeout });
@@ -189,12 +149,13 @@ async function ensureDeviceIsUnlocked() {
     });
 }
 
+
 async function enterPin(pin, isTransactionPin = false) {
     return safeAction(async (driver) => {
         console.log(`🔹 Entering ${isTransactionPin ? 'transaction' : 'login'} PIN...`);
         for (const digit of pin) {
-            const selector = isTransactionPin
-                ? SELECTORS.TRANSACTION_PIN_KEYPAD(digit)
+            const selector = isTransactionPin 
+                ? SELECTORS.TRANSACTION_PIN_KEYPAD(digit) 
                 : SELECTORS.LOGIN_PIN_KEYPAD[digit];
             const btn = await driver.$(selector);
             await btn.click();
@@ -206,85 +167,57 @@ async function navigateToHome() {
     return safeAction(async (driver) => {
         await ensureDeviceIsUnlocked();
 
-        const APP_PACKAGE = opts.capabilities.alwaysMatch["appium:appPackage"];
-        
-        // Check if the app is already in the foreground.
-        const appState = await driver.queryAppState(APP_PACKAGE);
+        console.log("🧠 Checking app state and navigating to home screen...");
 
-        if (appState !== 4) {
-            console.log(`🚀 App is not in foreground (state: ${appState}). Activating...`);
-            await driver.activateApp(APP_PACKAGE);
-            // Wait for the app to become stable after a fresh activation.
-            await driver.pause(5000);
-        } else {
-            console.log("✅ App is already in the foreground. Allowing UI to settle...");
-            // Add a small pause even if already in foreground to handle UI refreshes.
-            await driver.pause(2000); 
+        if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 5000)) {
+            console.log("✅ Already on the home screen.");
+            return;
         }
 
-        console.log("🧠 Verifying app screen state...");
+        console.log("🚀 App not on home screen. Activating app...");
+        await driver.activateApp(opts.capabilities.alwaysMatch["appium:appPackage"]);
 
-        // --- NEW LOGIC: Check for the MOST LIKELY state FIRST ---
-        // 1. Are we already on the home screen? Use a generous timeout.
-        if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 25000)) {
+         if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 15000)) {
             console.log("✅ Verification successful: App is on the home screen.");
             return;
         }
 
-        console.log("🔹 Not on home screen. Checking for other known states...");
+        if (await isDisplayedWithin(driver, SELECTORS.LOGIN_NEXT_BTN, 3000)) {
+            console.log("🔹 On login screen. Logging in...");
+            await (await driver.$(SELECTORS.LOGIN_NEXT_BTN)).click();
+        }
 
-        // 2. Check for Login PIN Screen
-        if (await isDisplayedWithin(driver, SELECTORS.LOGIN_PIN_KEYPAD["1"], 5000)) {
-            console.log("🔹 Detected PIN screen. Entering PIN...");
+        if (await isDisplayedWithin(driver, SELECTORS.LOGIN_PIN_KEYPAD["1"], 3000)) {
             await enterPin(TELEBIRR_LOGIN_PIN, false);
-            // Wait for the main page container to confirm successful login
             await driver.$(SELECTORS.MAIN_PAGE_CONTAINER).waitForDisplayed({ timeout: 45000 });
             console.log("✅ Login successful. On home screen.");
             return;
         }
 
-        // 3. Check for Login Introductory Screen
-        if (await isDisplayedWithin(driver, SELECTORS.LOGIN_NEXT_BTN, 3000)) {
-            console.log("🔹 On login introductory screen. Tapping Next...");
-            await (await driver.$(SELECTORS.LOGIN_NEXT_BTN)).click();
-            // Now wait for the PIN screen to appear and handle it
-            if (await isDisplayedWithin(driver, SELECTORS.LOGIN_PIN_KEYPAD["1"], 10000)) {
-                console.log("🔹 Detected PIN screen after intro. Entering PIN...");
-                await enterPin(TELEBIRR_LOGIN_PIN, false);
-                await driver.$(SELECTORS.MAIN_PAGE_CONTAINER).waitForDisplayed({ timeout: 45000 });
-                console.log("✅ Login successful. On home screen.");
+        console.log("🔹 On unknown screen. Trying back navigation...");
+        for (let i = 0; i < 4; i++) {
+            await driver.back();
+            await driver.pause(1000);
+            if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 2000)) {
+                console.log("✅ Returned to home via back button.");
                 return;
             }
         }
 
-        // 4. Fallback: If all checks failed, try a single back press for popups/ads.
-        console.log("🔹 On unknown screen. Trying a single back press...");
-        await driver.back();
-        await driver.pause(2000);
-
-        // 5. FINAL ATTEMPT: Check for the home screen one last time after the back press.
-        if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 15000)) {
-            console.log("✅ Returned to home screen after a back press.");
-            return;
-        }
-
-        throw new Error("FATAL: Could not navigate to the home screen after all checks and recovery attempts.");
+        throw new Error("FATAL: Could not navigate to home screen.");
     });
 }
 
 
-// Heartbeat to keep session alive
 setInterval(async () => {
     try {
         const d = await getDriver();
-        // A lightweight call to keep the session alive without altering the app state
-        await d.getOrientation();
-        console.log("❤️ Heartbeat check successful.");
+        await d.getPageSource(); // lightweight call to keep session alive
     } catch (e) {
-        console.warn("Heartbeat failed, driver will be reset on next action:", e.message);
+        console.warn("Heartbeat failed, driver will be reset:", e.message);
         resetDriver();
     }
-}, 4 * 60 * 1000);
+}, 4 * 60 * 1000); 
 
 
 module.exports = {
