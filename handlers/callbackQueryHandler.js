@@ -136,7 +136,7 @@ module.exports = function (bot) {
             return ctx.answerCbQuery("⏳ Too many requests. Please wait a second.");
         }
 
-        // ⭐ NEW: Handle the 'register' callback query
+        // ⭐ NEW: Handle the 'register' callback querys
     if (data === "register") {
     await clearAllFlows(telegramId);
     await ctx.answerCbQuery();
