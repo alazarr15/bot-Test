@@ -208,43 +208,33 @@ async function navigateToHome() {
 
         const APP_PACKAGE = opts.capabilities.alwaysMatch["appium:appPackage"];
         
-        // Check if the app is already in the foreground to avoid unnecessary restarts.
-        // App state codes: 0=not installed, 1=not running, 2=bg(suspended), 3=bg, 4=fg
+        // Check if the app is already in the foreground.
         const appState = await driver.queryAppState(APP_PACKAGE);
 
         if (appState !== 4) {
             console.log(`🚀 App is not in foreground (state: ${appState}). Activating...`);
             await driver.activateApp(APP_PACKAGE);
-            // Wait for the app to become stable after activation.
+            // Wait for the app to become stable after a fresh activation.
             await driver.pause(5000);
         } else {
-            console.log("✅ App is already in the foreground.");
+            console.log("✅ App is already in the foreground. Allowing UI to settle...");
+            // Add a small pause even if already in foreground to handle UI refreshes.
+            await driver.pause(2000); 
         }
 
-        console.log("🧠 Checking app state and navigating to home screen...");
+        console.log("🧠 Verifying app screen state...");
 
-        // 1. Check for Deep-Linked/Intermediate Screens (e.g., Send Money Button check)
-        if (await isDisplayedWithin(driver, SELECTORS.SEND_MONEY_BTN, 3000)) {
-            console.log("⚠️ Detected a deep-linked screen. Trying back navigation to clear it.");
-            await driver.back();
-            await driver.pause(2000);
-
-            // Re-check if back navigation landed on the Home Screen
-            if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 3000)) {
-                console.log("✅ Back navigation successful. Returned to home screen.");
-                return;
-            }
+        // --- NEW LOGIC: Check for the MOST LIKELY state FIRST ---
+        // 1. Are we already on the home screen? Use a generous timeout.
+        if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 25000)) {
+            console.log("✅ Verification successful: App is on the home screen.");
+            return;
         }
 
-        // 2. Check for Login Introductory Screen
-        if (await isDisplayedWithin(driver, SELECTORS.LOGIN_NEXT_BTN, 3000)) {
-            console.log("🔹 On login introductory screen. Tapping Next...");
-            await (await driver.$(SELECTORS.LOGIN_NEXT_BTN)).click();
-            // Fall through to the PIN check
-        }
+        console.log("🔹 Not on home screen. Checking for other known states...");
 
-        // 3. Check for Login PIN Screen
-        if (await isDisplayedWithin(driver, SELECTORS.LOGIN_PIN_KEYPAD["1"], 10000)) {
+        // 2. Check for Login PIN Screen
+        if (await isDisplayedWithin(driver, SELECTORS.LOGIN_PIN_KEYPAD["1"], 5000)) {
             console.log("🔹 Detected PIN screen. Entering PIN...");
             await enterPin(TELEBIRR_LOGIN_PIN, false);
             // Wait for the main page container to confirm successful login
@@ -253,24 +243,32 @@ async function navigateToHome() {
             return;
         }
 
-        // 4. CRITICAL FINAL CHECK: App is already on the Home Screen.
-        if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 3000)) {
-            console.log("✅ App is on the home screen.");
-            return;
-        }
-
-        // 5. Fallback: Aggressive Back Navigation (For unexpected popups)
-        console.log("🔹 On unknown screen. Trying aggressive back navigation...");
-        for (let i = 0; i < 4; i++) {
-            await driver.back();
-            await driver.pause(1000);
-            if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 2000)) {
-                console.log("✅ Returned to home via back button.");
+        // 3. Check for Login Introductory Screen
+        if (await isDisplayedWithin(driver, SELECTORS.LOGIN_NEXT_BTN, 3000)) {
+            console.log("🔹 On login introductory screen. Tapping Next...");
+            await (await driver.$(SELECTORS.LOGIN_NEXT_BTN)).click();
+            // Now wait for the PIN screen to appear and handle it
+            if (await isDisplayedWithin(driver, SELECTORS.LOGIN_PIN_KEYPAD["1"], 10000)) {
+                console.log("🔹 Detected PIN screen after intro. Entering PIN...");
+                await enterPin(TELEBIRR_LOGIN_PIN, false);
+                await driver.$(SELECTORS.MAIN_PAGE_CONTAINER).waitForDisplayed({ timeout: 45000 });
+                console.log("✅ Login successful. On home screen.");
                 return;
             }
         }
 
-        throw new Error("FATAL: Could not navigate to home screen after all checks.");
+        // 4. Fallback: If all checks failed, try a single back press for popups/ads.
+        console.log("🔹 On unknown screen. Trying a single back press...");
+        await driver.back();
+        await driver.pause(2000);
+
+        // 5. FINAL ATTEMPT: Check for the home screen one last time after the back press.
+        if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 15000)) {
+            console.log("✅ Returned to home screen after a back press.");
+            return;
+        }
+
+        throw new Error("FATAL: Could not navigate to the home screen after all checks and recovery attempts.");
     });
 }
 
