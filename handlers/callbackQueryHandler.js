@@ -27,99 +27,99 @@ const telebirrWithdrawalQueue = [];
         }
     };
 
-const processQueue = (bot) => {
+// const processQueue = (bot) => {
 
-    const runWorker = async () => {
-        console.log("🔄 Starting Telebirr withdrawal queue processor...");
+//     const runWorker = async () => {
+//         console.log("🔄 Starting Telebirr withdrawal queue processor...");
 
-        while (true) {
-            let task = null;
+//         while (true) {
+//             let task = null;
 
-            try {
-                // ✅ Simplified driver management. The service handles creation/reconnection.
-                const driver = await getDriver();
+//             try {
+//                 // ✅ Simplified driver management. The service handles creation/reconnection.
+//                 const driver = await getDriver();
 
-                if (telebirrWithdrawalQueue.length > 0) {
-                    task = telebirrWithdrawalQueue.shift();
-                    const { telegramId, amount, account_number, withdrawalRecordId } = task;
+//                 if (telebirrWithdrawalQueue.length > 0) {
+//                     task = telebirrWithdrawalQueue.shift();
+//                     const { telegramId, amount, account_number, withdrawalRecordId } = task;
 
-                    console.log(`🚀 Starting Telebirr withdrawal task for user ${telegramId}`);
+//                     console.log(`🚀 Starting Telebirr withdrawal task for user ${telegramId}`);
 
-                    const result = await processTelebirrWithdrawal({ driver, amount, account_number });
-                    console.log("🔍 Telebirr worker result:", JSON.stringify(result, null, 2));
+//                     const result = await processTelebirrWithdrawal({ driver, amount, account_number });
+//                     console.log("🔍 Telebirr worker result:", JSON.stringify(result, null, 2));
 
-                    const isSuccess = result?.status === "success" || result?.message?.toLowerCase().includes("completed");
+//                     const isSuccess = result?.status === "success" || result?.message?.toLowerCase().includes("completed");
 
-                    const withdrawalRecord = await Withdrawal.findById(withdrawalRecordId);
-                    if (withdrawalRecord) {
-                        withdrawalRecord.status = isSuccess ? "completed" : "failed";
-                        if (result?.data?.tx_ref) {
-                            withdrawalRecord.tx_ref = result.data.tx_ref;
-                        }
-                        await withdrawalRecord.save();
+//                     const withdrawalRecord = await Withdrawal.findById(withdrawalRecordId);
+//                     if (withdrawalRecord) {
+//                         withdrawalRecord.status = isSuccess ? "completed" : "failed";
+//                         if (result?.data?.tx_ref) {
+//                             withdrawalRecord.tx_ref = result.data.tx_ref;
+//                         }
+//                         await withdrawalRecord.save();
 
-                        if (isSuccess) {
-                        withdrawalRecord.status = "completed";
-                        // ... (update tx_ref if available)
-                        await withdrawalRecord.save();
-                        } else {
-                        // ↩️ REFUND STEP (Graceful Failure): The worker failed, so refund the user.
-                        withdrawalRecord.status = "failed";
-                        await withdrawalRecord.save();
+//                         if (isSuccess) {
+//                         withdrawalRecord.status = "completed";
+//                         // ... (update tx_ref if available)
+//                         await withdrawalRecord.save();
+//                         } else {
+//                         // ↩️ REFUND STEP (Graceful Failure): The worker failed, so refund the user.
+//                         withdrawalRecord.status = "failed";
+//                         await withdrawalRecord.save();
                         
-                        console.log(`Refunding ${amount} to user ${telegramId} due to failed withdrawal.`);
-                        // Atomically add the amount back to the user's balance
-                        await refundAndCacheUpdate(telegramId, amount); 
-                    }
-                    }
+//                         console.log(`Refunding ${amount} to user ${telegramId} due to failed withdrawal.`);
+//                         // Atomically add the amount back to the user's balance
+//                         await refundAndCacheUpdate(telegramId, amount); 
+//                     }
+//                     }
 
-                    try {
-                        await bot.telegram.sendMessage(
-                            Number(telegramId),
-                            isSuccess
-                                ? `✅ የ*${amount} ብር* ወደ አካውንትዎ ገቢ ተደርጓል!`
-                                : `🚫 የ*${amount} ብር* ገንዘብ ማውጣትዎ አልተሳካም። እባክዎ ቆይተው እንደገና ይሞክሩ።`,
-                            { parse_mode: "Markdown" }
-                        );
-                    } catch (msgErr) {
-                        console.error(`❌ Failed to send final message to ${telegramId}:`, msgErr);
-                    }
+//                     try {
+//                         await bot.telegram.sendMessage(
+//                             Number(telegramId),
+//                             isSuccess
+//                                 ? `✅ የ*${amount} ብር* ወደ አካውንትዎ ገቢ ተደርጓል!`
+//                                 : `🚫 የ*${amount} ብር* ገንዘብ ማውጣትዎ አልተሳካም። እባክዎ ቆይተው እንደገና ይሞክሩ።`,
+//                             { parse_mode: "Markdown" }
+//                         );
+//                     } catch (msgErr) {
+//                         console.error(`❌ Failed to send final message to ${telegramId}:`, msgErr);
+//                     }
 
-                    await new Promise(resolve => setTimeout(resolve, 2000));
-                } else {
-                    await new Promise(resolve => setTimeout(resolve, 5000));
-                }
-            } catch (loopErr) {
-                console.error("🔥 A critical error occurred in the worker loop:", loopErr);
-                resetDriver(); // ✅ Tell the service to invalidate the driver
+//                     await new Promise(resolve => setTimeout(resolve, 2000));
+//                 } else {
+//                     await new Promise(resolve => setTimeout(resolve, 5000));
+//                 }
+//             } catch (loopErr) {
+//                 console.error("🔥 A critical error occurred in the worker loop:", loopErr);
+//                 resetDriver(); // ✅ Tell the service to invalidate the driver
 
-                if (task) {
-                    console.error(`💀 Error processing task for user: ${task.telegramId}`);
-                    try {
-                        await Withdrawal.findByIdAndUpdate(task.withdrawalRecordId, { status: "failed" });
+//                 if (task) {
+//                     console.error(`💀 Error processing task for user: ${task.telegramId}`);
+//                     try {
+//                         await Withdrawal.findByIdAndUpdate(task.withdrawalRecordId, { status: "failed" });
 
-                        console.log(`Refunding ${task.amount} to user ${task.telegramId} due to critical error.`);
-                        await User.findOneAndUpdate({ telegramId: task.telegramId }, { $inc: { balance: task.amount } });
+//                         console.log(`Refunding ${task.amount} to user ${task.telegramId} due to critical error.`);
+//                         await User.findOneAndUpdate({ telegramId: task.telegramId }, { $inc: { balance: task.amount } });
 
-                        await bot.telegram.sendMessage(
-                            Number(task.telegramId),
-                            `🚫 A system error occurred while processing your withdrawal of *${task.amount} Birr*. Please contact support.`,
-                            { parse_mode: "Markdown" }
-                        );
-                    } catch (recoveryErr) {
-                        console.error("🚨 Failed to perform recovery actions:", recoveryErr);
-                    }
-                }
-                await new Promise(resolve => setTimeout(resolve, 10000));
-            }
-        }
-    };
+//                         await bot.telegram.sendMessage(
+//                             Number(task.telegramId),
+//                             `🚫 A system error occurred while processing your withdrawal of *${task.amount} Birr*. Please contact support.`,
+//                             { parse_mode: "Markdown" }
+//                         );
+//                     } catch (recoveryErr) {
+//                         console.error("🚨 Failed to perform recovery actions:", recoveryErr);
+//                     }
+//                 }
+//                 await new Promise(resolve => setTimeout(resolve, 10000));
+//             }
+//         }
+//     };
 
 
-    runWorker();
-};
+//     runWorker();
+// };
 module.exports = function (bot) {
-    processQueue(bot);
+   // processQueue(bot);
 
     bot.on("callback_query", async (ctx) => {
         const telegramId = ctx.from.id;
