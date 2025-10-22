@@ -177,6 +177,11 @@ async function navigateToHome() {
         console.log("🚀 App not on home screen. Activating app...");
         await driver.activateApp(opts.capabilities.alwaysMatch["appium:appPackage"]);
 
+         if (await isDisplayedWithin(driver, SELECTORS.MAIN_PAGE_CONTAINER, 15000)) {
+            console.log("✅ Verification successful: App is on the home screen.");
+            return;
+        }
+
         if (await isDisplayedWithin(driver, SELECTORS.LOGIN_NEXT_BTN, 3000)) {
             console.log("🔹 On login screen. Logging in...");
             await (await driver.$(SELECTORS.LOGIN_NEXT_BTN)).click();
@@ -222,5 +227,6 @@ module.exports = {
     enterPin,
     ensureDeviceIsUnlocked,
     SELECTORS,
-    TELEBIRR_LOGIN_PIN
+    TELEBIRR_LOGIN_PIN,
+    safeAction
 };
