@@ -388,109 +388,128 @@ return ctx.reply(successMessage, { parse_mode: 'Markdown' });
 
             // === 3. Transfer Flow ===
             // This block executes if a transfer is in progress and message wasn't '/cancel' (handled above)
-            if (user.transferInProgress) {
-                // --- STEP 1: Recipient ---
-                if (user.transferInProgress.step === 1) {
-                    let recipientPhoneNumber = messageRaw.replace(/\s+/g, "");
+          if (user.transferInProgress) {
+  // --- STEP 1: Recipient ---
+  if (user.transferInProgress.step === 1) {
+    let recipientPhoneNumber = messageRaw.replace(/\s+/g, "");
 
-                    if (recipientPhoneNumber.startsWith("0")) {
-                        recipientPhoneNumber = "251" + recipientPhoneNumber.slice(1);
-                    }
+    if (recipientPhoneNumber.startsWith("0")) {
+      recipientPhoneNumber = "251" + recipientPhoneNumber.slice(1);
+    }
 
-                    if (!/^\d{12}$/.test(recipientPhoneNumber)) {
-                        return ctx.reply("🚫 Invalid phone number format. Please enter a 12-digit number including country code.");
-                    }
+    if (!/^\d{12}$/.test(recipientPhoneNumber)) {
+      return ctx.reply("🚫 Invalid phone number format. Please enter a 12-digit number including country code.");
+    }
 
-                    const recipient = await User.findOne({ phoneNumber: recipientPhoneNumber });
-                    if (!recipient) {
-                        return ctx.reply("🚫 Recipient not found. Please check the phone number.\n\nTo cancel, type /cancel.");
-                    }
+    const recipient = await User.findOne({ phoneNumber: recipientPhoneNumber });
+    if (!recipient) {
+      return ctx.reply("🚫 Recipient not found. Please check the phone number.\n\nTo cancel, type /cancel.");
+    }
 
-                    if (recipient._id.equals(user._id)) {
-                        return ctx.reply("🚫 You cannot transfer to yourself. Please enter a different recipient.\n\nTo cancel, type /cancel.");
-                    }
+    if (recipient._id.equals(user._id)) {
+      return ctx.reply("🚫 You cannot transfer to yourself. Please enter a different recipient.\n\nTo cancel, type /cancel.");
+    }
 
-                    await User.updateOne(
-                        { telegramId },
-                        { $set: { "transferInProgress.recipient": recipientPhoneNumber, "transferInProgress.step": 2 } }
-                    );
+    await User.updateOne(
+      { telegramId },
+      { $set: { "transferInProgress.recipient": recipientPhoneNumber, "transferInProgress.step": 2 } }
+    );
 
-                    return ctx.reply("💵 Enter the amount you wish to transfer:");
-                }
+    return ctx.reply("💵 Enter the amount you wish to transfer:");
+  }
 
-                // --- STEP 2: Amount ---
-                if (user.transferInProgress.step === 2) {
-                    let amount = parseFloat(messageRaw);
+  // --- STEP 2: Amount ---
+  if (user.transferInProgress.step === 2) {
+    let amount = parseFloat(messageRaw);
 
-                    if (isNaN(amount) || amount <= 0) {
-                        return ctx.reply("🚫 Invalid amount. Please enter a valid number.\n\nTo cancel, type /cancel.");
-                    }
+    if (isNaN(amount) || amount <= 0) {
+      return ctx.reply("🚫 Invalid amount. Please enter a valid number.\n\nTo cancel, type /cancel.");
+    }
 
-                    amount = Math.round(amount * 100) / 100; // Round to 2 decimals
+    amount = Math.round(amount * 100) / 100;
 
-                    if (amount < 30 || amount > 1000) {
-                        return ctx.reply("🚫 Transfer amount must be between 30 and 1000 Birr.\n\nTo cancel, type /cancel.");
-                    }
+    if (amount < 30 || amount > 1000) {
+      return ctx.reply("🚫 Transfer amount must be between 30 and 1000 Birr.\n\nTo cancel, type /cancel.");
+    }
 
-                    const session = await mongoose.startSession();
-                    session.startTransaction();
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-                    try {
-                        // ⭐ FIX 2: Use the existing `user` object and only fetch the recipient
-                        const recipient = await User.findOne({ phoneNumber: user.transferInProgress.recipient }).session(session);
+    try {
+      const recipient = await User.findOne({ phoneNumber: user.transferInProgress.recipient }).session(session);
 
-                        if (!recipient) {
-                            await session.abortTransaction();
-                            session.endSession();
-                            return ctx.reply("🚫 Unexpected error: Recipient not found. Transfer canceled.");
-                        }
+      if (!recipient) {
+        await session.abortTransaction();
+        session.endSession();
+        return ctx.reply("🚫 Unexpected error: Recipient not found. Transfer canceled.");
+      }
 
-                        if (user.balance < amount) {
-                            await session.abortTransaction();
-                            session.endSession();
-                            return ctx.reply("🚫 Insufficient balance. Transfer canceled.");
-                        }
+      if (user.balance < amount) {
+        await session.abortTransaction();
+        session.endSession();
+        return ctx.reply("🚫 Insufficient balance. Transfer canceled.");
+      }
 
-                        await User.updateOne({ telegramId: user.telegramId }, { $inc: { balance: -amount } }, { session });
-                        await User.updateOne({ phoneNumber: recipient.phoneNumber }, { $inc: { balance: amount } }, { session });
+      // --- Update both balances in MongoDB within the transaction ---
+      await User.updateOne({ telegramId: user.telegramId }, { $inc: { balance: -amount } }, { session });
+      await User.updateOne({ phoneNumber: recipient.phoneNumber }, { $inc: { balance: amount } }, { session });
 
-                        const transferRecord = new Transfer({
-                            senderId: user._id,
-                            recipientId: recipient._id,
-                            senderPhone: user.phoneNumber,
-                            recipientPhone: recipient.phoneNumber,
-                            senderTelegramId: user.telegramId,
-                            recipientTelegramId: recipient.telegramId || null,
-                            amount: amount,
-                        });
-                        await transferRecord.save({ session });
+      // --- Record transfer ---
+      const transferRecord = new Transfer({
+        senderId: user._id,
+        recipientId: recipient._id,
+        senderPhone: user.phoneNumber,
+        recipientPhone: recipient.phoneNumber,
+        senderTelegramId: user.telegramId,
+        recipientTelegramId: recipient.telegramId || null,
+        amount: amount,
+      });
+      await transferRecord.save({ session });
 
-                        await session.commitTransaction();
-                        session.endSession();
+      // ✅ Commit the transaction
+      await session.commitTransaction();
+      session.endSession();
 
-                        await ctx.reply(`✅ Transferred **${amount} Birr** to phone number **${recipient.phoneNumber}**.`);
+      // ✅ Fetch fresh data for Redis sync (both sender and recipient)
+      const updatedUser = await User.findOne({ telegramId });
+      const updatedRecipient = await User.findOne({ phoneNumber: recipient.phoneNumber });
 
-                        if (recipient.telegramId) {
-                            try {
-                                await ctx.telegram.sendMessage(
-                                    recipient.telegramId,
-                                    `✅ You received **${amount} Birr** from phone number **${user.phoneNumber}**.`
-                                );
-                            } catch (err) {
-                                console.warn("⚠️ Failed to notify recipient:", err.message);
-                            }
-                        }
+      // ✅ Update Redis for sender (balance + bonus)
+      await redis.set(`userBalance:${telegramId}`, updatedUser.balance.toString(), { EX: 60 });
+      await redis.set(`userBonusBalance:${telegramId}`, (updatedUser.bonus_balance || 0).toString(), { EX: 60 });
 
-                        await User.updateOne({ telegramId: user.telegramId }, { $unset: { transferInProgress: 1 } });
-                        return ctx.reply("🔄 Transfer complete. Returning to the main menu:", buildMainMenu(user));
-                    } catch (err) {
-                        await session.abortTransaction();
-                        session.endSession();
-                        console.error("❌ Transfer failed:", err);
-                        return ctx.reply("🚫 Transfer failed due to a server error. Please try again later.");
-                    }
-                }
-            } // End of transferInProgress block
+      // ✅ Update Redis for recipient (balance + bonus, if telegramId exists)
+      if (updatedRecipient.telegramId) {
+        await redis.set(`userBalance:${updatedRecipient.telegramId}`, updatedRecipient.balance.toString(), { EX: 60 });
+        await redis.set(`userBonusBalance:${updatedRecipient.telegramId}`, (updatedRecipient.bonus_balance || 0).toString(), { EX: 60 });
+      }
+
+      // ✅ Notify both parties
+      await ctx.reply(`✅ Transferred **${amount} Birr** to phone number **${recipient.phoneNumber}**.`);
+
+      if (recipient.telegramId) {
+        try {
+          await ctx.telegram.sendMessage(
+            recipient.telegramId,
+            `✅ You received **${amount} Birr** from phone number **${user.phoneNumber}**.`
+          );
+        } catch (err) {
+          console.warn("⚠️ Failed to notify recipient:", err.message);
+        }
+      }
+
+      // ✅ Reset transfer progress
+      await User.updateOne({ telegramId: user.telegramId }, { $unset: { transferInProgress: 1 } });
+
+      return ctx.reply("🔄 Transfer complete. Returning to the main menu:", buildMainMenu(user));
+    } catch (err) {
+      await session.abortTransaction();
+      session.endSession();
+      console.error("❌ Transfer failed:", err);
+      return ctx.reply("🚫 Transfer failed due to a server error. Please try again later.");
+    }
+  }
+}
 
             // === 4. Main Menu Fallback ===
             // This is the general fallback if no other specific flow handles the message.
