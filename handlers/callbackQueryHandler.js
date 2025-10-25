@@ -119,7 +119,7 @@ const telebirrWithdrawalQueue = [];
 //     runWorker();
 // };
 module.exports = function (bot) {
-   // processQueue(bot);
+   //processQueue(bot);
 
     bot.on("callback_query", async (ctx) => {
         const telegramId = ctx.from.id;
