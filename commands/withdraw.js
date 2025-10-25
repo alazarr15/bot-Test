@@ -26,6 +26,20 @@ module.exports = function (bot) {
                 globalRateLimiter.consume("global"),
             ]);
 
+             // ✅ Time Block Check — Only allow withdrawals between 9 AM and 12 AM midnight
+      const now = new Date();
+      const currentHour = now.getHours(); // 0–23
+      const WORK_START = 9;  // 9 AM
+      const WORK_END = 24;   // 12 AM (midnight)
+
+      if (currentHour < WORK_START || currentHour >= WORK_END) {
+        return ctx.reply(
+          "⏰ ገንዘብ ማውጣት የሚቻለው ከ*ጠዋት 3:00* እስከ *እኩለ ሌሊት 6:00* ብቻ ነዉ*.\n" +
+          "🙏 እባክዎ በስራ ሰዓት ውስጥ ይሞክሩ።",
+          { parse_mode: "Markdown" }
+        );
+      }
+
             const user = await User.findOne({ telegramId });
 
             // Check if the user exists and if they have a phone number
