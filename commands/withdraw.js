@@ -26,29 +26,29 @@ module.exports = function (bot) {
                 globalRateLimiter.consume("global"),
             ]);
 
-            // ✅ Time Block Check — Temporarily blocking withdrawals BETWEEN 9 AM and 12 AM (midnight)
-            // This is the REVERSED logic for testing, allowing withdrawals only from 12 AM to 8:59 AM.
-           // ✅ Time Block Check — Temporarily blocking withdrawals BETWEEN 9 AM EAT and 12 AM (midnight) EAT
+ // ✅ Time Block Check — Only allow withdrawals BETWEEN 9 AM EAT and 12 AM (midnight) EAT
 const now = new Date();
-// FIX: Use getUTCHours() for timezone-independent check
+// Use getUTCHours() for timezone-independent check (UTC+0)
 const currentHourUTC = now.getUTCHours(); // 0–23 UTC
 
-// Your intended local block time (9 AM EAT to 12 AM EAT) converted to UTC:
-// 9 AM EAT (UTC+3) is 6 AM UTC (9 - 3 = 6)
-// 12 AM EAT (midnight) is 9 PM UTC (24 - 3 = 21)
-const BLOCK_START_UTC = 6;  // Represents 9 AM EAT
-const BLOCK_END_UTC = 21;   // Represents 12 AM EAT (midnight)
+// The ALLOWED window (9 AM EAT to 12 AM EAT) corresponds to:
+// 9 AM EAT is 6 AM UTC
+// 12 AM EAT (midnight) is 21:00 UTC (9 PM UTC)
+const WORK_START_UTC = 6;  // Represents 9 AM EAT
+const WORK_END_UTC = 21;   // Represents 12 AM EAT (midnight)
 
-// The command is BLOCKED if the current hour (UTC) is 6, 7, 8, ..., 20
-// The command is BLOCKED if the current hour (UTC) is 6, 7, 8, ..., 20
-if (currentHourUTC >= BLOCK_START_UTC && currentHourUTC < BLOCK_END_UTC) {
-    // FIX: Removed the trailing asterisk (*) from the first line to fix the 400 Bad Request: can't parse entities error.
+// The command is BLOCKED if the current hour (UTC) is OUTSIDE the 6 to 20 range.
+// Block if it is before 6 AM UTC (0-5) OR after or at 21:00 UTC (21-23).
+if (currentHourUTC < WORK_START_UTC || currentHourUTC >= WORK_END_UTC) {
+    // This message is shown when the user attempts a withdrawal OUTSIDE of 9 AM to 12 AM EAT.
     return ctx.reply(
         "⏰ ገንዘብ ማውጣት የሚቻለው ከ*ጠዋት 3:00* እስከ *እኩለ ሌሊት 6:00* ብቻ ነዉ.\n" +
         "🙏 እባክዎ በስራ ሰዓት ውስጥ ይሞክሩ።",
         { parse_mode: "Markdown" }
     );
 }
+
+
             const user = await User.findOne({ telegramId });
 
             // Check if the user exists and if they have a phone number
