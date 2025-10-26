@@ -40,10 +40,11 @@ const BLOCK_START_UTC = 6;  // Represents 9 AM EAT
 const BLOCK_END_UTC = 21;   // Represents 12 AM EAT (midnight)
 
 // The command is BLOCKED if the current hour (UTC) is 6, 7, 8, ..., 20
+// The command is BLOCKED if the current hour (UTC) is 6, 7, 8, ..., 20
 if (currentHourUTC >= BLOCK_START_UTC && currentHourUTC < BLOCK_END_UTC) {
-    // NOTE: This message will now appear when testing DURING 9 AM EAT to 12 AM EAT
+    // FIX: Removed the trailing asterisk (*) from the first line to fix the 400 Bad Request: can't parse entities error.
     return ctx.reply(
-        "⏰ ገንዘብ ማውጣት የሚቻለው ከ*ጠዋት 3:00* እስከ *እኩለ ሌሊት 6:00* ብቻ ነዉ*.\n" +
+        "⏰ ገንዘብ ማውጣት የሚቻለው ከ*ጠዋት 3:00* እስከ *እኩለ ሌሊት 6:00* ብቻ ነዉ.\n" +
         "🙏 እባክዎ በስራ ሰዓት ውስጥ ይሞክሩ።",
         { parse_mode: "Markdown" }
     );
