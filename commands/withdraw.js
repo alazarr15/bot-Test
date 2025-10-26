@@ -28,21 +28,26 @@ module.exports = function (bot) {
 
             // ✅ Time Block Check — Temporarily blocking withdrawals BETWEEN 9 AM and 12 AM (midnight)
             // This is the REVERSED logic for testing, allowing withdrawals only from 12 AM to 8:59 AM.
-            const now = new Date();
-            const currentHour = now.getHours(); // 0–23
-            const BLOCK_START = 9;  // 9 AM
-            const BLOCK_END = 24;   // 12 AM (midnight, represented by 24 or 0 for the next day)
+           // ✅ Time Block Check — Temporarily blocking withdrawals BETWEEN 9 AM EAT and 12 AM (midnight) EAT
+const now = new Date();
+// FIX: Use getUTCHours() for timezone-independent check
+const currentHourUTC = now.getUTCHours(); // 0–23 UTC
 
-            // The command is BLOCKED if the current hour is 9, 10, 11, ..., 23
-            if (currentHour >= BLOCK_START && currentHour < BLOCK_END) {
-                // NOTE: This message will now appear when testing DURING 9 AM to 12 AM midnight
-                return ctx.reply(
-                    "⏰ ገንዘብ ማውጣት የሚቻለው ከ*ጠዋት 3:00* እስከ *እኩለ ሌሊት 6:00* ብቻ ነዉ*.\n" +
-                    "🙏 እባክዎ በስራ ሰዓት ውስጥ ይሞክሩ።",
-                    { parse_mode: "Markdown" }
-                );
-            }
+// Your intended local block time (9 AM EAT to 12 AM EAT) converted to UTC:
+// 9 AM EAT (UTC+3) is 6 AM UTC (9 - 3 = 6)
+// 12 AM EAT (midnight) is 9 PM UTC (24 - 3 = 21)
+const BLOCK_START_UTC = 6;  // Represents 9 AM EAT
+const BLOCK_END_UTC = 21;   // Represents 12 AM EAT (midnight)
 
+// The command is BLOCKED if the current hour (UTC) is 6, 7, 8, ..., 20
+if (currentHourUTC >= BLOCK_START_UTC && currentHourUTC < BLOCK_END_UTC) {
+    // NOTE: This message will now appear when testing DURING 9 AM EAT to 12 AM EAT
+    return ctx.reply(
+        "⏰ ገንዘብ ማውጣት የሚቻለው ከ*ጠዋት 3:00* እስከ *እኩለ ሌሊት 6:00* ብቻ ነዉ*.\n" +
+        "🙏 እባክዎ በስራ ሰዓት ውስጥ ይሞክሩ።",
+        { parse_mode: "Markdown" }
+    );
+}
             const user = await User.findOne({ telegramId });
 
             // Check if the user exists and if they have a phone number
