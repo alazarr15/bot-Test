@@ -26,19 +26,22 @@ module.exports = function (bot) {
                 globalRateLimiter.consume("global"),
             ]);
 
-             // ✅ Time Block Check — Only allow withdrawals between 9 AM and 12 AM midnight
-      const now = new Date();
-      const currentHour = now.getHours(); // 0–23
-      const WORK_START = 9;  // 9 AM
-      const WORK_END = 24;   // 12 AM (midnight)
+            // ✅ Time Block Check — Temporarily blocking withdrawals BETWEEN 9 AM and 12 AM (midnight)
+            // This is the REVERSED logic for testing, allowing withdrawals only from 12 AM to 8:59 AM.
+            const now = new Date();
+            const currentHour = now.getHours(); // 0–23
+            const BLOCK_START = 9;  // 9 AM
+            const BLOCK_END = 24;   // 12 AM (midnight, represented by 24 or 0 for the next day)
 
-      if (currentHour < WORK_START || currentHour >= WORK_END) {
-        return ctx.reply(
-          "⏰ ገንዘብ ማውጣት የሚቻለው ከ*ጠዋት 3:00* እስከ *እኩለ ሌሊት 6:00* ብቻ ነዉ*.\n" +
-          "🙏 እባክዎ በስራ ሰዓት ውስጥ ይሞክሩ።",
-          { parse_mode: "Markdown" }
-        );
-      }
+            // The command is BLOCKED if the current hour is 9, 10, 11, ..., 23
+            if (currentHour >= BLOCK_START && currentHour < BLOCK_END) {
+                // NOTE: This message will now appear when testing DURING 9 AM to 12 AM midnight
+                return ctx.reply(
+                    "⏰ ገንዘብ ማውጣት የሚቻለው ከ*ጠዋት 3:00* እስከ *እኩለ ሌሊት 6:00* ብቻ ነዉ*.\n" +
+                    "🙏 እባክዎ በስራ ሰዓት ውስጥ ይሞክሩ።",
+                    { parse_mode: "Markdown" }
+                );
+            }
 
             const user = await User.findOne({ telegramId });
 
@@ -53,14 +56,14 @@ module.exports = function (bot) {
                 });
             }
             
-          
-const winningGame = await GameHistory.findOne({
-  telegramId: String(telegramId),
-  eventType: 'win' // <-- Matches the 'eventType' field in your active schema
-});
-if (!winningGame) { // Check if a winning record was NOT found
-    return ctx.reply("🚫 **Withdrawal Blocked:** You must win at least one game before you can withdraw any funds. Good luck!", { parse_mode: "Markdown" });
-}
+            
+            const winningGame = await GameHistory.findOne({
+                telegramId: String(telegramId),
+                eventType: 'win' // <-- Matches the 'eventType' field in your active schema
+            });
+            if (!winningGame) { // Check if a winning record was NOT found
+                return ctx.reply("🚫 **Withdrawal Blocked:** You must win at least one game before you can withdraw any funds. Good luck!", { parse_mode: "Markdown" });
+            }
             
             // --- NEW WITHDRAWAL CONDITION CHECK END ---
             
@@ -101,7 +104,7 @@ if (!winningGame) { // Check if a winning record was NOT found
                 callback_data: `withdraw_${bank.code}`
             }]);
 
-            return ctx.reply("💸 የገንዘብ ማውጣት ዘዴዎን ይምረጡ  👇", {
+            return ctx.reply("💸 የገንዘብ ማውጣት ዘዴዎን ይምረጡ  👇", {
                 reply_markup: {
                     inline_keyboard: keyboard
                 }
@@ -109,10 +112,10 @@ if (!winningGame) { // Check if a winning record was NOT found
         } catch (error) {
             // If rate limiting failed, it throws an error that we catch here as well
             if (error.key) {
-                 // You may want to handle the rate limiting error specifically here, 
-                 // e.g., reply with a message about trying later.
-                 console.error("Rate limit hit for user:", telegramId);
-                 return ctx.reply("🛑 You are performing too many actions. Please try again shortly.");
+                // You may want to handle the rate limiting error specifically here, 
+                // e.g., reply with a message about trying later.
+                console.error("Rate limit hit for user:", telegramId);
+                return ctx.reply("🛑 You are performing too many actions. Please try again shortly.");
             }
             
             console.error("❌ Error initiating /withdraw command for user:", telegramId, error);
