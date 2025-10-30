@@ -79,13 +79,15 @@ module.exports = function (bot) {
                     { 
                         $inc: { 
                             referralCount: 1, 
-                            bonus_balance: REFERRER_BONUS 
+                           // bonus_balance: REFERRER_BONUS 
+                              coin_balance: REFERRER_BONUS 
                         } 
                     }
                 );
 
                 // Notify the referrer if the update was successful 
-                if (referrerUpdateResult.modifiedCount > 0) {
+            /*   if (referrerUpdateResult.modifiedCount > 0) {
+
                      // Fetch referrer's current data to get the updated count for the message
                      const referrerUser = await User.findOne({ telegramId: referrerId });
 
@@ -95,7 +97,35 @@ module.exports = function (bot) {
                         { parse_mode: 'Markdown' }
                     );
                     console.log(`[Referral Payout] Credited ${REFERRER_BONUS} Birr to referrer ${referrerId}`);
-                }
+                }*/
+
+
+           
+  if (referrerUpdateResult.modifiedCount > 0) {
+    // Re-fetch referrer's data to get the LATEST balances
+    const referrerUser = await User.findOne({ telegramId: referrerId });
+
+    // Determine the base congratulation message
+    let messageText = `🙏 Great job!The user ${refereeDisplayName} which u invite  has successfully registered.`;
+
+    // --- CONDITIONALLY ADD BONUS AND BALANCE DETAILS ---
+    if (REFERRER_BONUS > 0) {
+        // If a bonus was awarded, add the bonus message and ALL balance details
+        messageText += `\n\n💰 You have been credited **${REFERRER_BONUS} Birr** to your Coin Balance.`;
+        messageText += `\n\n**Main Balance:** *${referrerUser.balance} ብር*`;
+        messageText += `\n**ቦነስ Balance:** *${referrerUser.bonus_balance} ብር*`;
+        messageText += `\n**Coin Balance:** *${referrerUser.coin_balance} ብር*`; 
+    } 
+    await bot.telegram.sendMessage(
+        referrerId,
+        messageText, 
+        { parse_mode: 'Markdown' }
+    );
+    
+    // Keep the logging regardless of bonus amount
+    console.log(`[Referral Payout] Credited ${REFERRER_BONUS} Birr to referrer ${referrerId}`);
+}
+// ...
             }
 
             // --- 3. Send Success Message to Referee (New User) ---

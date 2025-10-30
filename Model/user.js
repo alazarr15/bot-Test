@@ -26,6 +26,10 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+   coin_balance: { // ⭐ NEW: Bonus balance field
+    type: Number,
+    default: 0,
+  },
   registeredAt: {
     type: Date,
     default: Date.now,

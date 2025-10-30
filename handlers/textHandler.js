@@ -195,7 +195,9 @@ if (depositState.step === "awaitingSMS") {
         };
         // Add bonus to bonus_balance if criteria met
         if (bonusToAward > 0) {
-            updateInc.bonus_balance = bonusToAward;
+          //  updateInc.bonus_balance = bonusToAward;
+            updateInc.coin_balance = bonusToAward;
+
         }
         // --- NEW BONUS LOGIC END ---
 
@@ -213,6 +215,7 @@ if (depositState.step === "awaitingSMS") {
                 // 2. Update Redis with the new balance from the DB
                 await redis.set(`userBalance:${telegramId}`, updatedUser.balance.toString(), { EX: 60 }); 
                 await redis.set(`userBonusBalance:${telegramId}`, updatedUser.bonus_balance.toString(), { EX: 60 });
+                await redis.set(`userCoinBalance:${telegramId}`, updatedUser.coin_balance.toString(), { EX: 60 });
             }
 
 
@@ -251,6 +254,7 @@ if (depositState.step === "awaitingSMS") {
 
             successMessage += `\n**Main Balance** is: *${updatedUser.balance} ብር*.`;
             successMessage += `\n**ቦነስ Balance** is: *${updatedUser.bonus_balance} ብር*.`;
+            successMessage += `\n**Coin Balance** is: *${updatedUser.coin_balance} ብር*.`;
             
            // Send the success message first
 return ctx.reply(successMessage, { parse_mode: 'Markdown' });
