@@ -27,7 +27,8 @@ if (!user || !user.phoneNumber) {
       // ⭐ New: Display both balances
       return ctx.reply(`💰 **Your Balances:**
 - **Withdrawable Balance:** *${user.balance} Birr*
-- **Bonus Balance:** *${user.bonus_balance || 0} Birr*`, {
+- **Bonus Balance:** *${user.bonus_balance || 0} Birr*
+- **Coin Balance:** *${user.coin_balance || 0} Birr*`, {
         parse_mode: "Markdown"
       });
 

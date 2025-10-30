@@ -21,11 +21,16 @@ module.exports = function (bot) {
         // Find the user and check the registrationInProgress field
         const user = await User.findOne({ telegramId });
         
- let REFERRER_BONUS = 0; // Declare REFERRER_BONUS as a mutable variable (let)
+ let REFERRER_BONUS = 0; 
+ let REGISTRATION_BONUS = 0;
         try {
             const settings = await BonusSettings.findOne({ settingId: 'GLOBAL_BONUS_CONFIG' });
-            // Assign the DB value (initiationBonus) to REFERRER_BONUS
-            REFERRER_BONUS = settings ? (settings.initiationBonus || 0) : 0; 
+            if (settings) {
+                // Existing: Invitation Bonus for the Referrer
+                REFERRER_BONUS = settings.initiationBonus || 0; 
+                // 🚀 New: Registration Bonus for the New User (Referee)
+                REGISTRATION_BONUS = settings.registerationBonus || 0; 
+            }
         } catch (dbErr) {
             console.error("Error fetching initiationBonus for referral:", dbErr);
             // Default REFERRER_BONUS remains 0 on error
@@ -43,92 +48,97 @@ module.exports = function (bot) {
             return;
         }
 
-        try {
+       try {
             const phoneNumber = ctx.message.contact.phone_number;
             // Note: This account number generation utility must be defined in your project
             const accountNumber = await generateUniqueAccountNumber();
 
-            // --- 1. Update the New User (Referee) Document to Complete Registration ---
-            const updateFields = {
+           // Prepare the registration bonus increment ($inc)
+           const bonusInc = REGISTRATION_BONUS > 0
+                ? { $inc: { bonus_balance: REGISTRATION_BONUS } } 
+                : {};
+
+            // Prepare the fields to SET ($set)
+            const setFields = {
                 username: ctx.from.first_name || "Guest",
                 phoneNumber,
-                // Clear the registrationInProgress field on completion
-                $set: { registrationInProgress: null }
+                registrationInProgress: null, // Clears the flag
             };
 
+            // Combine $set and $inc for an atomic database operation
+            const updateOperation = {
+                $set: setFields, 
+                ...bonusInc 
+            };
+
+
+            // --- 1. Update the New User (Referee) Document to Complete Registration and Apply Bonus ---
             const updatedUser = await User.findOneAndUpdate(
                 { telegramId },
-                updateFields,
+                updateOperation, // This is the fix! It applies both the phone number and the bonus.
                 { new: true, upsert: false }
             );
-  
+             
+           if (REGISTRATION_BONUS > 0) {
+                console.log(`[Registration Bonus] Credited ${REGISTRATION_BONUS} Birr to new user ${telegramId}`);
+                await ctx.reply(
+                    `🎁 Congratulations, ${updatedUser.username}! You've received a **${REGISTRATION_BONUS} Birr** registration bonus! This has been added to your **ቦነስ Balance**.`,
+                    { parse_mode: 'Markdown' }
+                );
+            }
+  
             // --- 2. Process Referral Payout (If a referrer exists) ---
             if (updatedUser.referrerId) {
-                const referrerId = updatedUser.referrerId;
-                referrerIdForErrorLogging = referrerId; 
-                
-                // Get the most identifiable name for the new user (referee)
-                const refereeDisplayName = ctx.from.username 
-                    ? `@${ctx.from.username}` 
-                    : ctx.from.first_name || 'a new player';
+                const referrerId = updatedUser.referrerId;
+                referrerIdForErrorLogging = referrerId; 
+                
+                // Get the most identifiable name for the new user (referee)
+                const refereeDisplayName = ctx.from.username 
+                    ? `@${ctx.from.username}` 
+                    : ctx.from.first_name || 'a new player';
 
-                
-                // Atomically update the referrer's count and bonus balance
+                
+                // Atomically update the referrer's count and bonus balance
                 const referrerUpdateResult = await User.updateOne(
                     { telegramId: referrerId },
                     { 
                         $inc: { 
                             referralCount: 1, 
-                           // bonus_balance: REFERRER_BONUS 
-                              coin_balance: REFERRER_BONUS 
+                              coin_balance: REFERRER_BONUS 
                         } 
                     }
                 );
 
-                // Notify the referrer if the update was successful 
-            /*   if (referrerUpdateResult.modifiedCount > 0) {
+                // Notify the referrer if the update was successful 
+           
+  if (referrerUpdateResult.modifiedCount > 0) {
+    // Re-fetch referrer's data to get the LATEST balances
+    const referrerUser = await User.findOne({ telegramId: referrerId });
 
-                     // Fetch referrer's current data to get the updated count for the message
-                     const referrerUser = await User.findOne({ telegramId: referrerId });
+    // Determine the base congratulation message
+    let messageText = `🙏 Great job!The user ${refereeDisplayName} which u invite  has successfully registered.`;
 
-                    await bot.telegram.sendMessage(
-                        referrerId,
-                        `🙏 Thanks for referring ${refereeDisplayName}! The referral bonus is temporarily paused — we wll notify you once we start again.`,
-                        { parse_mode: 'Markdown' }
-                    );
-                    console.log(`[Referral Payout] Credited ${REFERRER_BONUS} Birr to referrer ${referrerId}`);
-                }*/
-
-
-           
-  if (referrerUpdateResult.modifiedCount > 0) {
-    // Re-fetch referrer's data to get the LATEST balances
-    const referrerUser = await User.findOne({ telegramId: referrerId });
-
-    // Determine the base congratulation message
-    let messageText = `🙏 Great job!The user ${refereeDisplayName} which u invite  has successfully registered.`;
-
-    // --- CONDITIONALLY ADD BONUS AND BALANCE DETAILS ---
-    if (REFERRER_BONUS > 0) {
-        // If a bonus was awarded, add the bonus message and ALL balance details
-        messageText += `\n\n💰 You have been credited **${REFERRER_BONUS} Birr** to your Coin Balance.`;
-        messageText += `\n\n**Main Balance:** *${referrerUser.balance} ብር*`;
-        messageText += `\n**ቦነስ Balance:** *${referrerUser.bonus_balance} ብር*`;
-        messageText += `\n**Coin Balance:** *${referrerUser.coin_balance} ብር*`; 
-    } 
-    await bot.telegram.sendMessage(
-        referrerId,
-        messageText, 
-        { parse_mode: 'Markdown' }
-    );
-    
-    // Keep the logging regardless of bonus amount
-    console.log(`[Referral Payout] Credited ${REFERRER_BONUS} Birr to referrer ${referrerId}`);
+    // --- CONDITIONALLY ADD BONUS AND BALANCE DETAILS ---
+    if (REFERRER_BONUS > 0) {
+        // If a bonus was awarded, add the bonus message and ALL balance details
+        messageText += `\n\n💰 You have been credited **${REFERRER_BONUS} Birr** to your Coin Balance.`;
+        messageText += `\n\n**Main Balance:** *${referrerUser.balance || 0} ብር*`;
+        messageText += `\n**ቦነስ Balance:** *${referrerUser.bonus_balance || 0} ብር*`;
+        messageText += `\n**Coin Balance:** *${referrerUser.coin_balance || 0} ብር*`; 
+    } 
+    await bot.telegram.sendMessage(
+        referrerId,
+        messageText, 
+        { parse_mode: 'Markdown' }
+    );
+    
+    // Keep the logging regardless of bonus amount
+    console.log(`[Referral Payout] Credited ${REFERRER_BONUS} Birr to referrer ${referrerId}`);
 }
 // ...
             }
 
-            // --- 3. Send Success Message to Referee (New User) ---
+            // --- 3. Send Success Message to Referee (New User) ---
             await ctx.reply("✅ Your contact has been received.", {
                 reply_markup: { remove_keyboard: true }
             });
@@ -147,5 +157,6 @@ module.exports = function (bot) {
             await User.findOneAndUpdate({ telegramId }, { registrationInProgress: null });
             return ctx.reply("🚫 Registration failed. Please try again.");
         }
+   
     });
 };

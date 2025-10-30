@@ -16,6 +16,11 @@ const bonusSettingsSchema = new mongoose.Schema({
         required: true,
         default: 0,
     },
+     registerationBonus: {
+        type: Number,
+        required: true,
+        default: 0,
+    },
     // The bonus amount granted upon a user's deposit
     depositBonus: {
         type: Number,
