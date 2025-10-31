@@ -25,7 +25,7 @@ const startLimitedBonusScheduler = (bot) => {
         console.log("✅ Limited Campaign State Initialized/Checked.");
 
         // Schedule to run at 21:25 UTC (12:25 AM EAT)
-        cron.schedule('25 21 * * *', async () => { 
+        cron.schedule('40 21 * * *', async () => { 
             console.log("🔄 Starting scheduled daily bonus broadcast cycle at 21:35 UTC...");
             await runDailyBroadcast(bot);
         });
