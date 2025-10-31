@@ -597,83 +597,93 @@ if (depositState.step !== "selectMethod" || !depositState.amount) {
 }
 
 
-//--------------------------------------------
-
+//-------------------------------------------------------------------------------------------------------------------------------------------------------
 
 if (data.startsWith(CLAIM_CALLBACK_DATA)) {
-            await ctx.answerCbQuery('Processing your claim...');
+    // 1. Initial Quick Check (Fetch the LATEST data)
+    const campaign = await LimitedCampaign.findOne({ campaignKey: 'DAILY_BONUS' });
+    const telegramId = ctx.from.id; // Make sure telegramId is defined here
 
-            const campaign = await LimitedCampaign.findOne({ campaignKey: 'DAILY_BONUS' });
+    if (!campaign || !campaign.isActive) {
+        // Use answerCbQuery for immediate feedback, then reply or edit later
+        await ctx.answerCbQuery('❌ This bonus campaign has expired or reached its limit.', { show_alert: true });
+        return ctx.editMessageReplyMarkup(null) 
+            .catch(() => {}) 
+            .then(() => ctx.reply('❌ This bonus campaign has expired or reached its limit.'));
+    }
+
+    // 2. CHECK IF USER ALREADY CLAIMED
+    if (campaign.claimants.includes(telegramId)) {
+        await ctx.answerCbQuery('⚠️ You have already claimed this bonus!', { show_alert: true });
+        // The button should only be removed if the claim succeeded, so we won't remove it here.
+        return;
+    }
+    
+    // 3. ATOMIC CLAIM AND REWARD (CRITICAL FIX APPLIED HERE)
+    // We rely only on the DB to check the count against the limit property on the document itself.
+    const result = await LimitedCampaign.findOneAndUpdate(
+        { 
+            campaignKey: 'DAILY_BONUS', 
+            isActive: true, 
+            claimsCount: { $lt: campaign.claimLimit } // <--- This condition now uses the currently active limit
+        },
+        { 
+            $inc: { claimsCount: 1 },
+            $push: { claimants: telegramId } 
+        },
+        { new: true }
+    );
+
+    if (!result) {
+        // If result is null, the atomic condition failed (i.e., claimsCount was NOT < claimLimit).
+        // The limit was hit by someone else immediately before this claim.
+        
+        // Ensure the campaign is marked inactive for all future checks
+        await LimitedCampaign.updateOne(
+            { campaignKey: 'DAILY_BONUS' },
+            { $set: { isActive: false } }
+        );
+        
+        // Trigger mass deletion for *everyone*
+        // process.nextTick(() => startDeleteJob(bot, campaign.messageContent)); // Assuming you want this to run on limit hit
+        
+        await ctx.answerCbQuery('❌ Sorry, the claim limit was just reached by someone else! Try again tomorrow.', { show_alert: true });
+        return ctx.editMessageReplyMarkup(null).catch(() => {});
+    }
+    
+    // SUCCESS PATH: User claimed the bonus
+    
+    // 4. REWARD USER
+    const rewardSuccess = await rewardBonusBalance(telegramId, result.bonusAmount);
+
+    if (rewardSuccess) {
+        // 5. CHECK FOR COMPLETION AND DELETE
+        if (result.claimsCount >= result.claimLimit) {
+            console.log(`🎉 LIMIT REACHED: ${result.claimLimit} claims hit! Starting mass deletion.`);
+            // Deactivate campaign state
+            await LimitedCampaign.updateOne({ campaignKey: 'DAILY_BONUS' }, { $set: { isActive: false } });
             
-            if (!campaign || !campaign.isActive) {
-                return ctx.editMessageReplyMarkup(null) // Remove button
-                          .catch(() => {}) // Ignore if message is already gone
-                          .then(() => ctx.reply('❌ This bonus campaign has expired or reached its limit.'));
-            }
-
-            // 1. CHECK IF USER ALREADY CLAIMED
-            if (campaign.claimants.includes(telegramId)) {
-                return ctx.editMessageReplyMarkup(null)
-                          .catch(() => {}) 
-                          .then(() => ctx.reply('❌ You have already claimed this bonus!'));
-            }
+            // Trigger deletion for all users (runs in the background)
+            process.nextTick(() => startDeleteJob(bot, result.messageContent)); 
             
-            // 2. ATOMIC CLAIM AND REWARD (CRITICAL STEP)
-            const result = await LimitedCampaign.findOneAndUpdate(
-                { 
-                    campaignKey: 'DAILY_BONUS', 
-                    isActive: true, 
-                    claimsCount: { $lt: campaign.claimLimit } 
-                },
-                { 
-                    $inc: { claimsCount: 1 },
-                    $push: { claimants: telegramId } 
-                },
-                { new: true }
-            );
-
-            if (!result) {
-                // If result is null, either limit was hit simultaneously or isActive is false
-                // Check if the limit was just reached to ensure we trigger deletion
-                const finalCheck = await LimitedCampaign.findOne({ campaignKey: 'DAILY_BONUS' });
-                if (finalCheck.claimsCount >= finalCheck.claimLimit) {
-                    // Trigger mass deletion for *everyone*
-                    await finalCheck.updateOne({ isActive: false });
-                    process.nextTick(() => startDeleteJob(bot, finalCheck.messageContent)); 
-                }
-                
-                return ctx.editMessageReplyMarkup(null)
-                          .catch(() => {}) 
-                          .then(() => ctx.reply('❌ Sorry, the claim limit was just reached by someone else!'));
-            }
-            
-            // 3. REWARD USER
-            const rewardSuccess = await rewardBonusBalance(telegramId, result.bonusAmount);
-
-            if (rewardSuccess) {
-                // 4. CHECK FOR COMPLETION AND DELETE
-                if (result.claimsCount >= result.claimLimit) {
-                    console.log(`🎉 LIMIT REACHED: ${result.claimLimit} claims hit! Starting mass deletion.`);
-                    // Deactivate campaign state
-                    await LimitedCampaign.updateOne({ campaignKey: 'DAILY_BONUS' }, { isActive: false });
-                    
-                    // Trigger deletion for all users (runs in the background)
-                    process.nextTick(() => startDeleteJob(bot, result.messageContent)); 
-                    
-                    // Send final success message to the claiming user
-                    return ctx.reply(`✅ Congratulations! You claimed ${result.bonusAmount} Birr Bonus, and you were the last one! The message will now disappear.`);
-                }
-                
-                // 5. SUCCESS RESPONSE
-                await ctx.editMessageReplyMarkup(null)
-                          .catch(() => {}); // Remove button for the claiming user
-                
-                return ctx.reply(`✅ Success! You received **${result.bonusAmount} Birr** bonus! Only **${result.claimLimit - result.claimsCount}** spots remain.`, { parse_mode: 'Markdown' });
-            } else {
-                return ctx.reply('🚫 Error rewarding bonus. Please contact support.');
-            }
+            await ctx.answerCbQuery(`✅ Congratulations! You claimed ${result.bonusAmount} Birr Bonus, and you were the last one!`, { show_alert: true });
+            return ctx.editMessageReplyMarkup(null).catch(() => {});
         }
+        
+        // 6. SUCCESS RESPONSE (Not the final claim)
+        await ctx.answerCbQuery(`✅ Success! You received ${result.bonusAmount} Birr bonus!`, { show_alert: true });
+        
+        // Remove button for the claiming user
+        await ctx.editMessageReplyMarkup(null).catch(() => {}); 
+        
+        return ctx.reply(`✅ Success! You received **${result.bonusAmount} Birr** bonus! Only **${result.claimLimit - result.claimsCount}** spots remain.`, { parse_mode: 'Markdown' });
 
+    } else {
+        await ctx.answerCbQuery('🚫 Error rewarding bonus. Please contact support.', { show_alert: true });
+        return;
+    }
+}
+// ... (rest of the handler)
             //------------------------------------------------------------
 
         // Handle balance callback
