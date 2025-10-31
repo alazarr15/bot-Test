@@ -7,6 +7,15 @@ const  redis  = require("../utils/redisClient.js");
 //const { processTelebirrWithdrawal } = require('./telebirrWorker.js');
 //const { getDriver, resetDriver } = require('./appiumService.js'); // 👈 Using the new service
 const { buildMainMenu,buildInstructionMenu } = require("../utils/menuMarkup");
+
+
+const { startDeleteJob } = require('../utils/broadcastUtils'); // ADD THIS
+const { CLAIM_CALLBACK_DATA } = require('./limitedBonusScheduler.js'); // ADD THIS (To match the claim key)
+const LimitedCampaign = require('../Model/limitedCampaign'); // ADD THIS
+const { rewardBonusBalance } = require('../utils/broadcastUtils.js'); // ADD THIS (or wherever you put the reward function)
+
+
+
 const fs = require('fs'); // ADD THIS
 const path = require('path'); // ADD THIS
 // ... rest of your imports
@@ -587,6 +596,85 @@ if (depositState.step !== "selectMethod" || !depositState.amount) {
     );
 }
 
+
+//--------------------------------------------
+
+
+if (data.startsWith(CLAIM_CALLBACK_DATA)) {
+            await ctx.answerCbQuery('Processing your claim...');
+
+            const campaign = await LimitedCampaign.findOne({ campaignKey: 'DAILY_BONUS' });
+            
+            if (!campaign || !campaign.isActive) {
+                return ctx.editMessageReplyMarkup(null) // Remove button
+                          .catch(() => {}) // Ignore if message is already gone
+                          .then(() => ctx.reply('❌ This bonus campaign has expired or reached its limit.'));
+            }
+
+            // 1. CHECK IF USER ALREADY CLAIMED
+            if (campaign.claimants.includes(telegramId)) {
+                return ctx.editMessageReplyMarkup(null)
+                          .catch(() => {}) 
+                          .then(() => ctx.reply('❌ You have already claimed this bonus!'));
+            }
+            
+            // 2. ATOMIC CLAIM AND REWARD (CRITICAL STEP)
+            const result = await LimitedCampaign.findOneAndUpdate(
+                { 
+                    campaignKey: 'DAILY_BONUS', 
+                    isActive: true, 
+                    claimsCount: { $lt: campaign.claimLimit } 
+                },
+                { 
+                    $inc: { claimsCount: 1 },
+                    $push: { claimants: telegramId } 
+                },
+                { new: true }
+            );
+
+            if (!result) {
+                // If result is null, either limit was hit simultaneously or isActive is false
+                // Check if the limit was just reached to ensure we trigger deletion
+                const finalCheck = await LimitedCampaign.findOne({ campaignKey: 'DAILY_BONUS' });
+                if (finalCheck.claimsCount >= finalCheck.claimLimit) {
+                    // Trigger mass deletion for *everyone*
+                    await finalCheck.updateOne({ isActive: false });
+                    process.nextTick(() => startDeleteJob(bot, finalCheck.messageContent)); 
+                }
+                
+                return ctx.editMessageReplyMarkup(null)
+                          .catch(() => {}) 
+                          .then(() => ctx.reply('❌ Sorry, the claim limit was just reached by someone else!'));
+            }
+            
+            // 3. REWARD USER
+            const rewardSuccess = await rewardBonusBalance(telegramId, result.bonusAmount);
+
+            if (rewardSuccess) {
+                // 4. CHECK FOR COMPLETION AND DELETE
+                if (result.claimsCount >= result.claimLimit) {
+                    console.log(`🎉 LIMIT REACHED: ${result.claimLimit} claims hit! Starting mass deletion.`);
+                    // Deactivate campaign state
+                    await LimitedCampaign.updateOne({ campaignKey: 'DAILY_BONUS' }, { isActive: false });
+                    
+                    // Trigger deletion for all users (runs in the background)
+                    process.nextTick(() => startDeleteJob(bot, result.messageContent)); 
+                    
+                    // Send final success message to the claiming user
+                    return ctx.reply(`✅ Congratulations! You claimed ${result.bonusAmount} Birr Bonus, and you were the last one! The message will now disappear.`);
+                }
+                
+                // 5. SUCCESS RESPONSE
+                await ctx.editMessageReplyMarkup(null)
+                          .catch(() => {}); // Remove button for the claiming user
+                
+                return ctx.reply(`✅ Success! You received **${result.bonusAmount} Birr** bonus! Only **${result.claimLimit - result.claimsCount}** spots remain.`, { parse_mode: 'Markdown' });
+            } else {
+                return ctx.reply('🚫 Error rewarding bonus. Please contact support.');
+            }
+
+
+            //------------------------------------------------------------
 
         // Handle balance callback
         if (data === "balance") {
