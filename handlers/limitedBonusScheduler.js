@@ -15,18 +15,19 @@ const startLimitedBonusScheduler = (bot) => {
             claimLimit: 2, 
             bonusAmount: 10,
             messageContent: '🎉 Daily Bonus is here! Click the button below to claim your reward.',
-            claimsCount: 0, // <-- ADDED
-            claimants: [], // <-- ADDED
-            isActive: true, // <-- ADDED
-            lastBroadcastAt: new Date(0) // ADDED for safety
+            claimsCount: 0, // State for the next day
+            claimants: [], // State for the next day
+            isActive: true, // The campaign starts as active
+            lastBroadcastAt: new Date(0) // Initial safe timestamp
         } },
         { upsert: true, new: true, setDefaultsOnInsert: true }
     ).then(initialCampaign => {
         console.log("✅ Limited Campaign State Initialized/Checked.");
 
-        // Schedule to run at 21:25 UTC (12:25 AM EAT)
-        cron.schedule('40 21 * * *', async () => { 
-            console.log("🔄 Starting scheduled daily bonus broadcast cycle at 21:35 UTC...");
+        // Schedule to run at 21:40 UTC (00:40 AM EAT)
+        cron.schedule('44 21 * * *', async () => { 
+            // Corrected log message to match cron time
+            console.log("🔄 Starting scheduled daily bonus broadcast cycle at 21:40 UTC...");
             await runDailyBroadcast(bot);
         });
 
@@ -46,7 +47,15 @@ const runDailyBroadcast = async (bot) => {
     // 1. CLEANUP PREVIOUS DAY'S ANNOUNCEMENT
     if (campaign.messageContent) {
         console.log("🧹 Cleaning up previous day's bonus message...");
-        await startDeleteJob(bot, campaign.messageContent);
+        
+        // 🚨 CRITICAL FIX: Wrap delete job in try/catch
+        try {
+            await startDeleteJob(bot, campaign.messageContent);
+            console.log("✅ Previous day's message cleanup completed.");
+        } catch (e) {
+            console.error("⚠️ WARNING: Previous message cleanup failed, but proceeding with broadcast:", e.message);
+            // DO NOT return here. Proceed to the broadcast step (Step 2).
+        }
     }
     
     // 2. PREPARE AND BROADCAST NEW MESSAGE
