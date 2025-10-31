@@ -2,8 +2,6 @@ require("dotenv").config();
 const mongoose = require("mongoose");
 const express = require("express");
 const bot = require("./bot"); // import your bot instance
-const { startLimitedBonusScheduler } = require('./handlers/limitedBonusScheduler'); // ADD THIS (Create this file next)
-
 
 mongoose.connect(process.env.MONGODB_URI, {})
   .then(() => console.log("✅ Connected to MongoDB"))
@@ -53,8 +51,6 @@ app.listen(PORT, async () => {
     } else {
       console.error("❌ Failed to set webhook");
     }
-        startLimitedBonusScheduler(bot);
-
   } catch (err) {
     console.error("❌ Error setting webhook:", err);
   }
