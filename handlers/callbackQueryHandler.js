@@ -672,7 +672,7 @@ if (data.startsWith(CLAIM_CALLBACK_DATA)) {
             } else {
                 return ctx.reply('🚫 Error rewarding bonus. Please contact support.');
             }
-
+        }
 
             //------------------------------------------------------------
 
