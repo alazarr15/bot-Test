@@ -8,11 +8,11 @@ const CLAIM_CALLBACK_DATA = 'CLAIM_DAILY_BONUS';
 
 const startLimitedBonusScheduler = (bot) => {
     // Ensure the campaign document exists and is initialized
-    LimitedCampaign.findOneAndUpdate(
+  LimitedCampaign.findOneAndUpdate(
         { campaignKey: 'DAILY_BONUS' },
-        // ⭐ CRITICAL FIX: Initialize messageContent and all other fields on first run
+        // ⭐ CRITICAL FIX: Add messageContent here
         { $setOnInsert: { 
-            claimLimit: 10, 
+            claimLimit: 2, 
             bonusAmount: 10,
             messageContent: '🎉 Daily Bonus is here! Click the button below to claim your reward.' 
         } },
@@ -20,8 +20,10 @@ const startLimitedBonusScheduler = (bot) => {
     ).then(initialCampaign => {
         console.log("✅ Limited Campaign State Initialized/Checked.");
 
-        // TEMPORARY FOR TESTING: Schedule to run at 21:25 UTC (12:25 AM EAT)
-        cron.schedule('25 21 * * *', async () => { 
+        // Schedule the job to run every day at midnight (00:00)
+        // If you want it to run every 24 hours from the last run, you can use a custom timer, 
+        // but cron is better for fixed daily timing.
+         cron.schedule('25 21 * * *', async () => { 
             console.log("🔄 Starting scheduled daily bonus broadcast cycle at 21:25 UTC...");
             await runDailyBroadcast(bot);
         });
