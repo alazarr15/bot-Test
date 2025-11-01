@@ -9,31 +9,39 @@ const startLimitedBonusScheduler = (bot) => {
     console.log("--- SCHEDULER INITIALIZATION ---");
     
     // Ensure the campaign document exists and is initialized
-    LimitedCampaign.findOneAndUpdate(
-        { campaignKey: 'DAILY_BONUS' },
-        { $setOnInsert: { 
-            claimLimit: 2, 
-            bonusAmount: 10,
+   LimitedCampaign.findOneAndUpdate(
+    { campaignKey: 'DAILY_BONUS' },
+    { 
+        // 1. $set: These values are APPLIED ON EVERY STARTUP, overriding any old value in the DB.
+        $set: {
+            claimLimit: 2,   // <-- This is now prioritized to be 2
+            bonusAmount: 10, // <-- This is prioritized to be 10
+        },
+        
+        // 2. $setOnInsert: These values are only applied if the document is created for the first time.
+        $setOnInsert: { 
             messageContent: '🎉 Daily Bonus is here! Click the button below to claim your reward.',
             claimsCount: 0, 
             claimants: [], 
-            isActive: true, // Crucial initial state
+            isActive: true, 
             lastBroadcastAt: new Date(0)
-        } },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-    ).then(initialCampaign => {
+        } 
+    },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+).then(initialCampaign => {
         const campaignState = initialCampaign || { ...this._doc }; // Safely extract state
         
         console.log(`✅ Limited Campaign State Initialized/Checked at ${new Date().toISOString()}.`);
         console.log(`[DB STATE STARTUP] isActive: ${campaignState.isActive}, Claims: ${campaignState.claimsCount}/${campaignState.claimLimit}`);
         
         // Schedule to run daily at 18:00 UTC (9:00 PM EAT)
-        cron.schedule('30 18 * * *', async () => { 
+        cron.schedule('48 18 * * *', async () => { 
             console.log(`\n--- CRON JOB START ---`);
             console.log(`🔄 Starting scheduled daily bonus broadcast cycle at ${new Date().toISOString()} (Target: 18:00 UTC)...`);
             await runDailyBroadcast(bot);
             console.log(`--- CRON JOB END ---\n`);
         });
+        
         
     }).catch(err => {
         console.error("❌ Failed to initialize Limited Campaign State:", err);
