@@ -27,10 +27,10 @@ const startLimitedBonusScheduler = (bot) => {
         console.log(`✅ Limited Campaign State Initialized/Checked at ${new Date().toISOString()}.`);
         console.log(`[DB STATE STARTUP] isActive: ${campaignState.isActive}, Claims: ${campaignState.claimsCount}/${campaignState.claimLimit}`);
         
-        // Schedule to run at 21:00 UTC (9:00 PM) every day
-        cron.schedule('17 18 * * *', async () => { 
+        // Schedule to run daily at 18:00 UTC (9:00 PM EAT)
+        cron.schedule('25 18 * * *', async () => { 
             console.log(`\n--- CRON JOB START ---`);
-            console.log(`🔄 Starting scheduled daily bonus broadcast cycle at ${new Date().toISOString()} (Target: 18:07 UTC)...`);
+            console.log(`🔄 Starting scheduled daily bonus broadcast cycle at ${new Date().toISOString()} (Target: 18:00 UTC)...`);
             await runDailyBroadcast(bot);
             console.log(`--- CRON JOB END ---\n`);
         });
@@ -63,7 +63,28 @@ const runDailyBroadcast = async (bot) => {
         }
     }
     
-    // 2. PREPARE AND BROADCAST NEW MESSAGE
+    // 2. RESET STATE (MOVED OUTSIDE BROADCAST CHECK)
+    console.log("💾 Guaranteeing state reset: Setting claims=0 and isActive=true.");
+    try {
+         const resetResult = await LimitedCampaign.updateOne(
+            { campaignKey: 'DAILY_BONUS' },
+            {
+                $set: {
+                    claimsCount: 0,
+                    claimants: [],
+                    isActive: true, // CRITICAL: Always set to true here
+                    lastBroadcastAt: new Date(),
+                    messageContent: campaign.messageContent 
+                }
+            }
+        );
+        console.log(`✅ DB Reset Success: Matched ${resetResult.matchedCount}, Modified ${resetResult.modifiedCount}.`);
+    } catch (e) {
+         console.error(`❌ CRITICAL: Failed to reset campaign state. Error: ${e.message}`);
+         return; // Stop if we can't reset the state
+    }
+    
+    // 3. PREPARE AND BROADCAST NEW MESSAGE (Now that the state is active)
     const uniqueCallbackData = `${CLAIM_CALLBACK_DATA}_${Date.now()}`;
     const buttonText = `Click to Claim ${campaign.bonusAmount} Birr Bonus`;
 
@@ -81,33 +102,9 @@ const runDailyBroadcast = async (bot) => {
     console.log(`📤 Broadcast job finished. Sent to ${successCount} users.`);
 
     if (successCount > 0) {
-        // 3. RESET AND UPDATE CAMPAIGN STATE FOR NEW DAY
-        console.log("💾 Resetting campaign state for new day...");
-        
-        try {
-             const updateResult = await LimitedCampaign.updateOne(
-                { campaignKey: 'DAILY_BONUS' },
-                {
-                    $set: {
-                        claimsCount: 0,
-                        claimants: [],
-                        isActive: true, // This confirms the new campaign is live
-                        lastBroadcastAt: new Date(),
-                        messageContent: campaign.messageContent 
-                    }
-                }
-            );
-
-            // Log the raw result of the DB update
-            console.log(`✅ DB Update Success: Matched ${updateResult.matchedCount}, Modified ${updateResult.modifiedCount}.`);
-            console.log(`✅ Daily bonus broadcast sent to ${successCount} users. Campaign is now live.`);
-        
-        } catch (e) {
-             console.error(`❌ CRITICAL: Failed to reset campaign state after broadcast. Error: ${e.message}`);
-        }
+        console.log(`✅ Daily bonus broadcast successfully sent to ${successCount} users. Campaign is live.`);
     } else {
-        // This case means no chats were found to send the message to.
-        console.log("⚠️ Broadcast sent to 0 users. Campaign state not reset.");
+        console.log("⚠️ Broadcast sent to 0 users. Campaign state has been reset, but no messages were sent.");
     }
 };
 
