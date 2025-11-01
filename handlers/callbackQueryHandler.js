@@ -635,10 +635,18 @@ if (data.startsWith(CLAIM_CALLBACK_DATA)) {
     // 3. ATOMIC CLAIM AND REWARD (CRITICAL FIX APPLIED HERE)
     // We rely only on the DB to check the count against the limit property on the document itself.
     
-    const atomicQuery = { 
+  /*  const atomicQuery = { 
         campaignKey: 'DAILY_BONUS', 
         isActive: true, 
         claimsCount: { $lt: campaign.claimLimit } 
+    };*/
+
+    const atomicQuery = { 
+        campaignKey: 'DAILY_BONUS', 
+        isActive: true, 
+        claimsCount: { $lt: campaign.claimLimit },
+        // 🛑 CRITICAL FIX: Ensures the user ID is NOT in the claimants array before claiming.
+        claimants: { $nin: [telegramId] } 
     };
     
     console.log(`[ATOMIC ATTEMPT] Query Criteria: ${JSON.stringify(atomicQuery)}`);
