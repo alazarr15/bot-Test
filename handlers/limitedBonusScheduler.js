@@ -1,4 +1,3 @@
-/* limitedBonusScheduler.js (FINAL CORRECT VERSION)
 const cron = require('node-cron');
 const LimitedCampaign = require('../Model/limitedCampaign'); // Assumed path: ./models/limitedCampaign
 const { startBroadcastJob, startDeleteJob } = require('../utils/broadcastUtils'); // Use the new utility
@@ -7,36 +6,42 @@ const { startBroadcastJob, startDeleteJob } = require('../utils/broadcastUtils')
 const CLAIM_CALLBACK_DATA = 'CLAIM_DAILY_BONUS';
 
 const startLimitedBonusScheduler = (bot) => {
+    console.log("--- SCHEDULER INITIALIZATION ---");
+    
     // Ensure the campaign document exists and is initialized
     LimitedCampaign.findOneAndUpdate(
         { campaignKey: 'DAILY_BONUS' },
-        // ⭐ CRITICAL FIX: Ensure ALL necessary state fields are included on first insertion.
         { $setOnInsert: { 
             claimLimit: 2, 
             bonusAmount: 10,
             messageContent: '🎉 Daily Bonus is here! Click the button below to claim your reward.',
-            claimsCount: 0, // State for the next day
-            claimants: [], // State for the next day
-            isActive: true, // The campaign starts as active
-            lastBroadcastAt: new Date(0) // Initial safe timestamp
+            claimsCount: 0, 
+            claimants: [], 
+            isActive: true, // Crucial initial state
+            lastBroadcastAt: new Date(0)
         } },
         { upsert: true, new: true, setDefaultsOnInsert: true }
     ).then(initialCampaign => {
-        console.log("✅ Limited Campaign State Initialized/Checked.");
-
-        // Schedule to run at 21:40 UTC (00:40 AM EAT)
-        cron.schedule('52 21 * * *', async () => { 
-            // Corrected log message to match cron time
-            console.log("🔄 Starting scheduled daily bonus broadcast cycle at 21:40 UTC...");
+        const campaignState = initialCampaign || { ...this._doc }; // Safely extract state
+        
+        console.log(`✅ Limited Campaign State Initialized/Checked at ${new Date().toISOString()}.`);
+        console.log(`[DB STATE STARTUP] isActive: ${campaignState.isActive}, Claims: ${campaignState.claimsCount}/${campaignState.claimLimit}`);
+        
+        // Schedule to run at 21:00 UTC (9:00 PM) every day
+        cron.schedule('0 21 * * *', async () => { 
+            console.log(`\n--- CRON JOB START ---`);
+            console.log(`🔄 Starting scheduled daily bonus broadcast cycle at ${new Date().toISOString()} (Target: 21:00 UTC)...`);
             await runDailyBroadcast(bot);
+            console.log(`--- CRON JOB END ---\n`);
         });
-
+        
     }).catch(err => {
         console.error("❌ Failed to initialize Limited Campaign State:", err);
     });
 };
 
 const runDailyBroadcast = async (bot) => {
+    // Fetch the current state immediately before acting
     const campaign = await LimitedCampaign.findOne({ campaignKey: 'DAILY_BONUS' });
 
     if (!campaign) {
@@ -44,22 +49,22 @@ const runDailyBroadcast = async (bot) => {
         return;
     }
 
+    console.log(`[DB STATE PRE-CLEANUP] isActive: ${campaign.isActive}, Claims: ${campaign.claimsCount}/${campaign.claimLimit}.`);
+
     // 1. CLEANUP PREVIOUS DAY'S ANNOUNCEMENT
     if (campaign.messageContent) {
         console.log("🧹 Cleaning up previous day's bonus message...");
         
-        // 🚨 CRITICAL FIX: Wrap delete job in try/catch
         try {
             await startDeleteJob(bot, campaign.messageContent);
             console.log("✅ Previous day's message cleanup completed.");
         } catch (e) {
-            console.error("⚠️ WARNING: Previous message cleanup failed, but proceeding with broadcast:", e.message);
-            // DO NOT return here. Proceed to the broadcast step (Step 2).
+            console.error(`⚠️ WARNING: Previous message cleanup failed. Error: ${e.message}`);
         }
     }
     
     // 2. PREPARE AND BROADCAST NEW MESSAGE
-    const uniqueCallbackData = `${CLAIM_CALLBACK_DATA}_${Date.now()}`; // Ensure unique click data per day
+    const uniqueCallbackData = `${CLAIM_CALLBACK_DATA}_${Date.now()}`;
     const buttonText = `Click to Claim ${campaign.bonusAmount} Birr Bonus`;
 
     const replyMarkup = {
@@ -71,91 +76,39 @@ const runDailyBroadcast = async (bot) => {
         replyMarkup: replyMarkup
     };
 
+    console.log("🚀 Starting broadcast job...");
     const successCount = await startBroadcastJob(bot, jobPayload);
+    console.log(`📤 Broadcast job finished. Sent to ${successCount} users.`);
 
     if (successCount > 0) {
         // 3. RESET AND UPDATE CAMPAIGN STATE FOR NEW DAY
-        await LimitedCampaign.updateOne(
-            { campaignKey: 'DAILY_BONUS' },
-            {
-                $set: {
-                    claimsCount: 0,
-                    claimants: [],
-                    isActive: true, // This confirms the new campaign is live
-                    lastBroadcastAt: new Date(),
-                    messageContent: campaign.messageContent // Keep message content for deletion
-                }
-            }
-        );
-        console.log(`✅ Daily bonus broadcast sent to ${successCount} users. Campaign is now live.`);
-    }
-};
-
-module.exports = {
-    startLimitedBonusScheduler,
-    CLAIM_CALLBACK_DATA
-};
-*/
-
-
-
-
-  //recommit the above code and contine your process tommorw
-//-------------------------------------------------------------------------------------------------------------
-// limitedBonusScheduler.js (DISABLED VERSION FOR CLEANUP)
-const cron = require('node-cron');
-const LimitedCampaign = require('../Model/limitedCampaign'); // Assumed path: ./models/limitedCampaign
-const { startBroadcastJob, startDeleteJob } = require('../utils/broadcastUtils'); // Use the new utility
-
-// A fixed callback data used on the button
-const CLAIM_CALLBACK_DATA = 'CLAIM_DAILY_BONUS';
-
-const startLimitedBonusScheduler = (bot) => {
-    // 1. Ensure the campaign document exists, is initialized, and is set to INACTIVE
-    LimitedCampaign.findOneAndUpdate(
-        { campaignKey: 'DAILY_BONUS' },
-        { 
-            $setOnInsert: { // Values to use if the document doesn't exist
-                claimLimit: 2, 
-                bonusAmount: 10,
-                messageContent: '🎉 Daily Bonus is here! Click the button below to claim your reward.',
-                claimsCount: 0, 
-                claimants: [], 
-                lastBroadcastAt: new Date(0) 
-            },
-            // 🚨 CRITICAL: Force the campaign to INACTIVE for safety and state consistency
-            $set: { isActive: false } 
-        },
-        { upsert: true, new: true, setDefaultsOnInsert: true }
-    ).then(async campaign => {
-        console.log("✅ Limited Campaign State Initialized/Checked and set to INACTIVE.");
-
-        // === ONE-TIME CLEANUP (User Request) ===
-        // This will run immediately when the bot starts to delete any existing buttons.
-        if (campaign.messageContent) {
-            console.log("🧹 [ONE-TIME CLEANUP] Deleting any existing bonus messages...");
-            try {
-                // Use the messageContent from the DB doc to delete messages
-                await startDeleteJob(bot, campaign.messageContent);
-                console.log("✅ [CLEANUP COMPLETE] All previous bonus messages deleted.");
-            } catch (e) {
-                console.error("⚠️ [CLEANUP FAILED] Could not delete old messages:", e.message);
-            }
-        }
-
-        // === SCHEDULE DISABLED (User Request) ===
-        // The cron.schedule block is intentionally removed.
-        console.log("🛑 Daily Bonus Scheduler is currently DISABLED as requested. Ready for tomorrow's debugging.");
+        console.log("💾 Resetting campaign state for new day...");
         
-    }).catch(err => {
-        console.error("❌ Failed to initialize Limited Campaign State:", err);
-    });
-};
+        try {
+             const updateResult = await LimitedCampaign.updateOne(
+                { campaignKey: 'DAILY_BONUS' },
+                {
+                    $set: {
+                        claimsCount: 0,
+                        claimants: [],
+                        isActive: true, // This confirms the new campaign is live
+                        lastBroadcastAt: new Date(),
+                        messageContent: campaign.messageContent 
+                    }
+                }
+            );
 
-// Keep the function defined but it won't be called by cron now.
-const runDailyBroadcast = async (bot) => {
-    console.log("⚠️ runDailyBroadcast called, but scheduler is disabled.");
-    // No logic here, as the cron job has been removed.
+            // Log the raw result of the DB update
+            console.log(`✅ DB Update Success: Matched ${updateResult.matchedCount}, Modified ${updateResult.modifiedCount}.`);
+            console.log(`✅ Daily bonus broadcast sent to ${successCount} users. Campaign is now live.`);
+        
+        } catch (e) {
+             console.error(`❌ CRITICAL: Failed to reset campaign state after broadcast. Error: ${e.message}`);
+        }
+    } else {
+        // This case means no chats were found to send the message to.
+        console.log("⚠️ Broadcast sent to 0 users. Campaign state not reset.");
+    }
 };
 
 module.exports = {

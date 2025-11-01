@@ -684,7 +684,7 @@ if (data.startsWith(CLAIM_CALLBACK_DATA)) {
     }
 }
 // ... (rest of the handler)
-            //------------------------------------------------------------
+            //-----------------------------------------------------------
 
         // Handle balance callback
         if (data === "balance") {
