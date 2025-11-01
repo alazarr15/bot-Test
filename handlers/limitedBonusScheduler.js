@@ -28,7 +28,7 @@ const startLimitedBonusScheduler = (bot) => {
         console.log(`[DB STATE STARTUP] isActive: ${campaignState.isActive}, Claims: ${campaignState.claimsCount}/${campaignState.claimLimit}`);
         
         // Schedule to run daily at 18:00 UTC (9:00 PM EAT)
-        cron.schedule('25 18 * * *', async () => { 
+        cron.schedule('0 18 * * *', async () => { 
             console.log(`\n--- CRON JOB START ---`);
             console.log(`🔄 Starting scheduled daily bonus broadcast cycle at ${new Date().toISOString()} (Target: 18:00 UTC)...`);
             await runDailyBroadcast(bot);
@@ -63,7 +63,7 @@ const runDailyBroadcast = async (bot) => {
         }
     }
     
-    // 2. RESET STATE (MOVED OUTSIDE BROADCAST CHECK)
+    // 2. RESET STATE
     console.log("💾 Guaranteeing state reset: Setting claims=0 and isActive=true.");
     try {
          const resetResult = await LimitedCampaign.updateOne(
@@ -84,7 +84,16 @@ const runDailyBroadcast = async (bot) => {
          return; // Stop if we can't reset the state
     }
     
-    // 3. PREPARE AND BROADCAST NEW MESSAGE (Now that the state is active)
+    // 3. VERIFY STATE BEFORE BROADCAST (New step for debugging)
+    const activeCampaign = await LimitedCampaign.findOne({ campaignKey: 'DAILY_BONUS' });
+    if (activeCampaign && activeCampaign.isActive) {
+        console.log("✅ DEBUG: State verified. Campaign is ACTIVE (isActive=true) before broadcast setup.");
+    } else {
+        console.error("❌ CRITICAL DEBUG: State check failed. Campaign is STILL INACTIVE after reset attempt!");
+        // We will proceed to broadcast, but this log confirms the database failed the reset.
+    }
+    
+    // 4. PREPARE AND BROADCAST NEW MESSAGE (Now that the state is active)
     const uniqueCallbackData = `${CLAIM_CALLBACK_DATA}_${Date.now()}`;
     const buttonText = `Click to Claim ${campaign.bonusAmount} Birr Bonus`;
 
