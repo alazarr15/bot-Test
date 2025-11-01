@@ -28,7 +28,7 @@ const startLimitedBonusScheduler = (bot) => {
         console.log(`[DB STATE STARTUP] isActive: ${campaignState.isActive}, Claims: ${campaignState.claimsCount}/${campaignState.claimLimit}`);
         
         // Schedule to run at 21:00 UTC (9:00 PM) every day
-        cron.schedule('15 18 * * *', async () => { 
+        cron.schedule('17 18 * * *', async () => { 
             console.log(`\n--- CRON JOB START ---`);
             console.log(`🔄 Starting scheduled daily bonus broadcast cycle at ${new Date().toISOString()} (Target: 18:07 UTC)...`);
             await runDailyBroadcast(bot);
