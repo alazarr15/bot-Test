@@ -599,21 +599,34 @@ if (depositState.step !== "selectMethod" || !depositState.amount) {
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------
 
+
+
 if (data.startsWith(CLAIM_CALLBACK_DATA)) {
+    console.log(`\n--- BONUS CLAIM START: User ${ctx.from.id} ---`);
+    
     // 1. Initial Quick Check (Fetch the LATEST data)
     const campaign = await LimitedCampaign.findOne({ campaignKey: 'DAILY_BONUS' });
     const telegramId = ctx.from.id; // Make sure telegramId is defined here
 
+    if (!campaign) {
+        console.error(`[CLAIM FAIL] Campaign document not found for user ${telegramId}.`);
+    } else {
+        console.log(`[CLAIM CHECK] DB State: isActive=${campaign.isActive}, Claims=${campaign.claimsCount}/${campaign.claimLimit}`);
+    }
+
+
     if (!campaign || !campaign.isActive) {
+        console.log(`[CLAIM FAIL] Campaign is NOT active or NOT found. Triggering expiry message for user ${telegramId}.`);
         // Use answerCbQuery for immediate feedback, then reply or edit later
         await ctx.answerCbQuery('❌ This bonus campaign has expired or reached its limit.', { show_alert: true });
         return ctx.editMessageReplyMarkup(null) 
-            .catch(() => {}) 
+            .catch((e) => console.log(`[CLEANUP FAIL] Failed to edit message reply markup: ${e.message}`)) 
             .then(() => ctx.reply('❌ This bonus campaign has expired or reached its limit.'));
     }
 
     // 2. CHECK IF USER ALREADY CLAIMED
     if (campaign.claimants.includes(telegramId)) {
+        console.log(`[CLAIM FAIL] User ${telegramId} already claimed. Aborting.`);
         await ctx.answerCbQuery('⚠️ You have already claimed this bonus!', { show_alert: true });
         // The button should only be removed if the claim succeeded, so we won't remove it here.
         return;
@@ -621,12 +634,17 @@ if (data.startsWith(CLAIM_CALLBACK_DATA)) {
     
     // 3. ATOMIC CLAIM AND REWARD (CRITICAL FIX APPLIED HERE)
     // We rely only on the DB to check the count against the limit property on the document itself.
+    
+    const atomicQuery = { 
+        campaignKey: 'DAILY_BONUS', 
+        isActive: true, 
+        claimsCount: { $lt: campaign.claimLimit } 
+    };
+    
+    console.log(`[ATOMIC ATTEMPT] Query Criteria: ${JSON.stringify(atomicQuery)}`);
+    
     const result = await LimitedCampaign.findOneAndUpdate(
-        { 
-            campaignKey: 'DAILY_BONUS', 
-            isActive: true, 
-            claimsCount: { $lt: campaign.claimLimit } // <--- This condition now uses the currently active limit
-        },
+        atomicQuery,
         { 
             $inc: { claimsCount: 1 },
             $push: { claimants: telegramId } 
@@ -635,56 +653,68 @@ if (data.startsWith(CLAIM_CALLBACK_DATA)) {
     );
 
     if (!result) {
+        console.log(`[ATOMIC FAIL] Atomic update failed for user ${telegramId}. Limit likely hit.`);
+        
         // If result is null, the atomic condition failed (i.e., claimsCount was NOT < claimLimit).
         // The limit was hit by someone else immediately before this claim.
         
         // Ensure the campaign is marked inactive for all future checks
-        await LimitedCampaign.updateOne(
+        const deactivateResult = await LimitedCampaign.updateOne(
             { campaignKey: 'DAILY_BONUS' },
             { $set: { isActive: false } }
         );
         
+        console.log(`[DEACTIVATION] DB Updated: Modified ${deactivateResult.modifiedCount} document(s).`);
+
         // Trigger mass deletion for *everyone*
         // process.nextTick(() => startDeleteJob(bot, campaign.messageContent)); // Assuming you want this to run on limit hit
         
         await ctx.answerCbQuery('❌ Sorry, the claim limit was just reached by someone else! Try again tomorrow.', { show_alert: true });
-        return ctx.editMessageReplyMarkup(null).catch(() => {});
+        return ctx.editMessageReplyMarkup(null).catch((e) => console.log(`[CLEANUP FAIL] Failed to edit message reply markup on atomic failure: ${e.message}`));
     }
     
     // SUCCESS PATH: User claimed the bonus
-    
+    console.log(`[ATOMIC SUCCESS] User ${telegramId} claimed bonus. New ClaimsCount: ${result.claimsCount}`);
+
     // 4. REWARD USER
     const rewardSuccess = await rewardBonusBalance(telegramId, result.bonusAmount);
+    console.log(`[REWARD] User ${telegramId} reward success: ${rewardSuccess}`);
+
 
     if (rewardSuccess) {
         // 5. CHECK FOR COMPLETION AND DELETE
         if (result.claimsCount >= result.claimLimit) {
             console.log(`🎉 LIMIT REACHED: ${result.claimLimit} claims hit! Starting mass deletion.`);
             // Deactivate campaign state
-            await LimitedCampaign.updateOne({ campaignKey: 'DAILY_BONUS' }, { $set: { isActive: false } });
-            
+            const finalDeactivateResult = await LimitedCampaign.updateOne({ campaignKey: 'DAILY_BONUS' }, { $set: { isActive: false } });
+            console.log(`[DEACTIVATION FINAL] DB Updated: Modified ${finalDeactivateResult.modifiedCount} document(s).`);
+
             // Trigger deletion for all users (runs in the background)
             process.nextTick(() => startDeleteJob(bot, result.messageContent)); 
             
             await ctx.answerCbQuery(`✅ Congratulations! You claimed ${result.bonusAmount} Birr Bonus, and you were the last one!`, { show_alert: true });
-            return ctx.editMessageReplyMarkup(null).catch(() => {});
+            return ctx.editMessageReplyMarkup(null).catch((e) => console.log(`[CLEANUP FAIL] Failed to edit message reply markup on final claim: ${e.message}`));
         }
         
         // 6. SUCCESS RESPONSE (Not the final claim)
         await ctx.answerCbQuery(`✅ Success! You received ${result.bonusAmount} Birr bonus!`, { show_alert: true });
         
         // Remove button for the claiming user
-        await ctx.editMessageReplyMarkup(null).catch(() => {}); 
+        await ctx.editMessageReplyMarkup(null).catch((e) => console.log(`[CLEANUP FAIL] Failed to remove button after success: ${e.message}`)); 
         
+        console.log(`[RESPONSE] Sent success message to user ${telegramId}. Remaining: ${result.claimLimit - result.claimsCount}`);
         return ctx.reply(`✅ Success! You received **${result.bonusAmount} Birr** bonus! Only **${result.claimLimit - result.claimsCount}** spots remain.`, { parse_mode: 'Markdown' });
 
     } else {
+        console.error(`[REWARD FAIL] Could not reward user ${telegramId}.`);
         await ctx.answerCbQuery('🚫 Error rewarding bonus. Please contact support.', { show_alert: true });
         return;
     }
 }
-// ... (rest of the handler)
-            //-----------------------------------------------------------
+
+
+
+//-----------------------------------------------------------------------------------------------------------------------------------
 
         // Handle balance callback
         if (data === "balance") {
