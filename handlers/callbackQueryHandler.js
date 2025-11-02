@@ -604,7 +604,7 @@ if (depositState.step !== "selectMethod" || !depositState.amount) {
 if (data.startsWith(CLAIM_CALLBACK_DATA)) {
     console.log(`\n--- BONUS CLAIM START: User ${ctx.from.id} ---`);
     
-    // 1. Initial Quick Check (Fetch the LATEST data)
+    //1. Initial Quick Check (Fetch the LATEST data)
     const campaign = await LimitedCampaign.findOne({ campaignKey: 'DAILY_BONUS' });
     const telegramId = ctx.from.id; // Make sure telegramId is defined here
 
