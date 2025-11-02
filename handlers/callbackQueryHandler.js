@@ -690,7 +690,16 @@ if (data.startsWith(CLAIM_CALLBACK_DATA)) {
 
 
     if (rewardSuccess) {
+
+         const updatedUser = await User.findOne({ telegramId });
+
+    // 🟢 Sync Redis cache for all balances
+    await redis.set(`userBalance:${telegramId}`, updatedUser.balance.toString(), { EX: 60 });
+    await redis.set(`userBonusBalance:${telegramId}`, updatedUser.bonus_balance.toString(), { EX: 60 });
+    await redis.set(`userCoinBalance:${telegramId}`, updatedUser.coin_balance.toString(), { EX: 60 });
+    console.log(`[REDIS SYNC] Updated cache for user ${telegramId}`);
         // 5. CHECK FOR COMPLETION AND DELETE
+
         if (result.claimsCount >= result.claimLimit) {
             console.log(`🎉 LIMIT REACHED: ${result.claimLimit} claims hit! Starting mass deletion.`);
             // Deactivate campaign state
