@@ -14,7 +14,7 @@ const startLimitedBonusScheduler = (bot) => {
     { 
         // 1. $set: These values are APPLIED ON EVERY STARTUP, overriding any old value in the DB.
         $set: {
-            claimLimit: 50,   // <-- This is now prioritized to be 2
+            claimLimit: 50,   // <-- This is now prioritized to be 50
             bonusAmount: 10, // <-- This is prioritized to be 10
         },
         
@@ -35,9 +35,9 @@ const startLimitedBonusScheduler = (bot) => {
         console.log(`[DB STATE STARTUP] isActive: ${campaignState.isActive}, Claims: ${campaignState.claimsCount}/${campaignState.claimLimit}`);
         
         // Schedule to run daily at 18:00 UTC (9:00 PM EAT)
-        cron.schedule('0 13 * * *', async () => { 
+        cron.schedule('30 11 * * *', async () => { 
             console.log(`\n--- CRON JOB START ---`);
-            console.log(`🔄 Starting scheduled daily bonus broadcast cycle at ${new Date().toISOString()} (Target: 13:00 UTC or 4 pm in eat)...`);
+            console.log(`🔄 Starting scheduled daily bonus broadcast cycle at ${new Date().toISOString()} (Target: 13:00 UTC or 2 pm in eat)...`);
             await runDailyBroadcast(bot);
             console.log(`--- CRON JOB END ---\n`);
         });
