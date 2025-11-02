@@ -25,7 +25,7 @@ const bonusSettingsSchema = new mongoose.Schema({
     claimLimitBonus:{
         type: Number,
         required: true,
-        default: 0,
+        default: 1,
     },
     bonusAmountClimBonus:{
          type: Number,
