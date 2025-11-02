@@ -21,7 +21,22 @@ const bonusSettingsSchema = new mongoose.Schema({
         required: true,
         default: 0,
     },
-    // The bonus amount granted upon a user's deposit
+
+    claimLimitBonus:{
+        type: Number,
+        required: true,
+        default: 50,
+    },
+    bonusAmountClimBonus:{
+         type: Number,
+        required: true,
+        default: 10,
+    },
+     broadcastCronSchedule: {
+        type: String,
+        required: true,
+        default: '30 11 * * *', // Defaulting to 11:30 UTC
+    },
     depositBonus: {
         type: Number,
         required: true,
