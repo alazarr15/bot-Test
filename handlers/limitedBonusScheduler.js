@@ -190,7 +190,7 @@ const startLimitedBonusScheduler = (bot) => {
     console.log("--- SCHEDULER INITIALIZATION ---");
 
     (async () => {
-        let claimLimitValue = 2; 
+        let claimLimitValue = 1; 
         let bonusAmountValue = 10; 
         let cronSchedulePattern = currentCronPattern; // Start with default/global value
 

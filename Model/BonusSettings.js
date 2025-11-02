@@ -25,7 +25,7 @@ const bonusSettingsSchema = new mongoose.Schema({
     claimLimitBonus:{
         type: Number,
         required: true,
-        default: 2,
+        default: 1,
     },
     bonusAmountClimBonus:{
          type: Number,
@@ -35,7 +35,7 @@ const bonusSettingsSchema = new mongoose.Schema({
      broadcastCronSchedule: {
         type: String,
         required: true,
-        default: '30 11 * * *', // Defaulting to 11:30 UTC
+        default: '30 11 * * *', 
     },
     depositBonus: {
         type: Number,
