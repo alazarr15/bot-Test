@@ -203,7 +203,7 @@ module.exports = function (bot) {
 
             // Final registration message for the new user
             return ctx.reply(
-                `🎉 Registration complete!\n` + `\nYour account number is: *${updatedUser.accountNumber}*`, // Use updatedUser for account number
+                `🎉 Registration complete!\n` + `\nYour account number is: *${accountNumber}*`, // Use updatedUser for account number
                 {
                     ...buildMainMenu(updatedUser),
                     parse_mode: "Markdown"

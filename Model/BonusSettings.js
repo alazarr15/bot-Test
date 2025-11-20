@@ -19,7 +19,7 @@ const bonusSettingsSchema = new mongoose.Schema({
      registerationBonus: {
         type: Number,
         required: true,
-        default: 0,
+        default: 10,
     },
 //-------------------------------------------
     registrationBonusLimit: {
