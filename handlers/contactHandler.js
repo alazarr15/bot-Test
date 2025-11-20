@@ -25,10 +25,9 @@ module.exports = function (bot) {
         let REGISTRATION_BONUS = 0;
 
         let BONUS_LIMIT_REACHED = false;
-        let settings; // Variable to hold the settings document - FIX: Defined outside try block for wider scope
+        let settings; // Variable to hold the settings document
 
         try {
-            // FIX: Removed 'const' so we assign to the 'let settings' defined above
             settings = await BonusSettings.findOne({ settingId: 'GLOBAL_BONUS_CONFIG' }); 
             if (settings) {
                 // Existing: Invitation Bonus for the Referrer
@@ -38,11 +37,12 @@ module.exports = function (bot) {
             }
 
             if (settings && settings.registrationBonusCount >= settings.registrationBonusLimit) {
-                // If the limit is reached, disable the bonus for this user
+                // If the limit is reached, disable the bonus for this user before the user update
                 REGISTRATION_BONUS = 0; 
                 BONUS_LIMIT_REACHED = true;
                 console.log(`[Registration Bonus Check] Limit reached (${settings.registrationBonusCount}/${settings.registrationBonusLimit}). Registration bonus disabled for user ${telegramId}.`);
             } else if (settings) {
+                // This will log the current count, which might be stale but is what we are currently using.
                 console.log(`[Registration Bonus Check] Promotion is active. Count: ${settings.registrationBonusCount}/${settings.registrationBonusLimit}`);
             }
         } catch (dbErr) {
@@ -68,6 +68,7 @@ module.exports = function (bot) {
             const accountNumber = await generateUniqueAccountNumber();
 
             // Prepare the registration bonus increment ($inc)
+            // This applies the bonus optimistically before confirming the counter increment
             const bonusInc = REGISTRATION_BONUS > 0
                 ? { $inc: { bonus_balance: REGISTRATION_BONUS } } 
                 : {};
@@ -96,11 +97,16 @@ module.exports = function (bot) {
             
             // --- BONUS LOGIC FOR NEW USER (REFEREE) ---
             if (REGISTRATION_BONUS > 0 && settings) {
+                // *** THE FIX IS HERE: We re-fetch the settings document right before the update. ***
+                const latestSettings = await BonusSettings.findOne({ settingId: 'GLOBAL_BONUS_CONFIG' });
+                const limit = latestSettings.registrationBonusLimit;
+                
                 // We use updateOne with a check ($lt: limit) to ensure we don't increment past the cap
                 const bonusSettingsUpdate = await BonusSettings.updateOne(
                     { 
                         settingId: 'GLOBAL_BONUS_CONFIG', 
-                        registrationBonusCount: { $lt: settings.registrationBonusLimit } 
+                        // Use the LATEST count value directly in the query to ensure we're not using stale data
+                        registrationBonusCount: { $lt: limit } 
                     }, 
                     { 
                         $inc: { registrationBonusCount: 1 } 
@@ -115,22 +121,20 @@ module.exports = function (bot) {
                         { parse_mode: 'Markdown' }
                     );
 
-                    // If the increment made the count reach the limit, you can update the DB value to 0
-                    if (settings.registrationBonusCount + 1 === settings.registrationBonusLimit) {
+                    // Check if the increment made the count reach the limit (latest count + 1 = limit)
+                    if (latestSettings.registrationBonusCount + 1 === limit) {
                         await BonusSettings.updateOne(
                             { settingId: 'GLOBAL_BONUS_CONFIG' },
                             { $set: { registerationBonus: 0 } }
                         );
-                        console.log(`[Registration Bonus] Limit reached (${settings.registrationBonusLimit}). Set 'registerationBonus' in DB to 0.`);
+                        console.log(`[Registration Bonus] Limit reached (${limit}). Set 'registerationBonus' in DB to 0.`);
                     }
                 } else {
-                    // This handles a race condition where the counter was hit just before this operation.
+                    // This handles a race condition OR the case where the limit was just reached.
                     console.log(`[Registration Bonus] User registered but counter could not be incremented (Race condition/Limit reached). Bonus revoked/not given.`);
-                    // You might consider a $dec on the user's bonus_balance here if you want perfect rollback, 
-                    // but for simplicity, we rely on the counter check being the primary gate.
                     
-                    // Since the registration was completed, but the counter wasn't incremented (likely a race condition), 
-                    // we should remove the bonus that was applied in the 'updatedUser' step to maintain consistency.
+                    // Since the registration was completed, but the counter wasn't incremented, 
+                    // we remove the bonus that was applied in the 'updatedUser' step to maintain consistency.
                     await User.updateOne(
                         { telegramId },
                         { $inc: { bonus_balance: -REGISTRATION_BONUS } } 
@@ -139,10 +143,8 @@ module.exports = function (bot) {
                 }
 
             } else if (BONUS_LIMIT_REACHED) {
-                 console.log(`[Registration Info] User ${telegramId} registered after promotion ended.`);
+                console.log(`[Registration Info] User ${telegramId} registered after promotion ended.`);
             }
- 
-            // FIX: Removed the duplicate bonus message block here. The logic is now inside the if(REGISTRATION_BONUS > 0) above.
             
             // --- 2. Process Referral Payout (If a referrer exists) ---
             if (updatedUser.referrerId) {
