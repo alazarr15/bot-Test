@@ -25,7 +25,7 @@ const bonusSettingsSchema = new mongoose.Schema({
     registrationBonusLimit: {
         type: Number,
         required: true,
-        default: 1, // Default limit is 500 users
+        default: 2, // Default limit is 500 users
     },
     // ⭐ NEW: The current count of users who have received the registration bonus
     registrationBonusCount: {
