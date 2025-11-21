@@ -274,6 +274,23 @@ const runDailyBroadcast = async (bot) => {
         return;
     }
 
+    if (campaign.claimLimit === 0) {
+        console.log("🛑 Daily Bonus ABORTED: The claimLimit is set to 0. No messages will be sent.");
+        
+        // **Optional:** If you want to ensure the campaign is marked INACTIVE when the limit is 0
+        try {
+            await LimitedCampaign.updateOne(
+                { campaignKey: 'DAILY_BONUS' },
+                { $set: { isActive: false } }
+            );
+            console.log("✅ Campaign marked as inactive due to 0 limit.");
+        } catch (e) {
+            console.error(`⚠️ WARNING: Failed to set campaign inactive: ${e.message}`);
+        }
+        
+        return; // Stop the function here
+    }
+
     console.log(`[DB STATE PRE-CLEANUP] isActive: ${campaign.isActive}, Claims: ${campaign.claimsCount}/${campaign.claimLimit}.`);
 
     // 1. CLEANUP PREVIOUS DAY'S ANNOUNCEMENT
