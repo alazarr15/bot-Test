@@ -34,7 +34,10 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-  
+  initialDepositBonusClaimed: { 
+    type: Boolean,
+    default: false,
+  },
   referralCount: {
     type: Number,
     default: 0,
