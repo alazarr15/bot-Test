@@ -170,6 +170,7 @@ if (depositState.step === "awaitingSMS") {
         let BONUS_AMOUNT = 0; // Birr (Standard cash bonus amount)
         let standardCashBonusToAward = 0;
         let initialTicketBonusToAward = 0; // 💡 NEW: The 1 free game ticket (coin)
+        const REFERRAL_PERCENTAGE = 0.05;
 
         try {
             const settings = await BonusSettings.findOne({ settingId: 'GLOBAL_BONUS_CONFIG' });
@@ -256,7 +257,33 @@ if (depositState.step === "awaitingSMS") {
             
             // Calculate total bonus awarded for the deposit record
             const totalBonusAwarded = standardCashBonusToAward + ticketBonus;
+
+            // 🎁 REFERRAL BONUS LOGIC START 🎁
+            let referralBonusAmount = 0;
+            let inviterTelegramId = null;
+            let inviterUser = null;
             
+            // Check if the user has an inviter
+            if (userBeforeUpdate.referrerId && userBeforeUpdate.referrerId !== 0) {
+                inviterTelegramId = userBeforeUpdate.referrerId;
+                
+                // Calculate the referral bonus (5% of claimedAmount)
+                referralBonusAmount = claimedAmount * REFERRAL_PERCENTAGE;
+                totalBonusAwarded += referralBonusAmount; // Add to the total bonus tracking for the deposit record
+
+                // Find and update the inviter's bonus balance
+                inviterUser = await User.findOneAndUpdate(
+                    { telegramId: inviterTelegramId },
+                    { $inc: { bonus_balance: referralBonusAmount } },
+                    { new: true, session }
+                );
+                
+                if (inviterUser) {
+                    // Update inviter's bonus balance in Redis
+                    await redis.set(`userBonusBalance:${inviterTelegramId}`, inviterUser.bonus_balance.toString(), { EX: 60 });
+                }
+            }
+            // 🎁 REFERRAL BONUS LOGIC END 🎁
             // ⭐ NEW: Create the deposit record within the same transaction.
             await Deposit.create([{
                 userId: updatedUser._id,
@@ -275,6 +302,18 @@ if (depositState.step === "awaitingSMS") {
             await session.commitTransaction();
             session.endSession();
 
+           if (referralBonusAmount > 0 && inviterUser) {
+                // Assuming you have a way to send a message to the inviter's telegramId
+                // The bonus is ${referralBonusAmount} Birr.
+                const inviterMessage = `🎉 እንኳን ደስ አለዎት! ሪፈራልዎ **${userBeforeUpdate.telegramId}** ተቀማጭ በማድረጉ ምክንያት **${referralBonusAmount.toFixed(2)} ETB** የቦነስ ቀሪ ሂሳብ ገቢ ተደርጎልዎታል!`;
+                // Note: ctx.telegram.sendMessage is a common method for this in Telegraf/Node-Telegram-Bot-API environments
+                try {
+                    await ctx.telegram.sendMessage(inviterTelegramId, inviterMessage, { parse_mode: 'Markdown' });
+                } catch (msgErr) {
+                    console.error(`Error sending message to inviter ${inviterTelegramId}:`, msgErr);
+                    // Non-critical error, continue
+                }
+            }
             // --- NEW SUCCESS MESSAGE START ---
             let successMessage = `🎉 ወደ አካውንትዎ ${claimedAmount} ETB ገቢ ሆኑአል፡፡`;
 
