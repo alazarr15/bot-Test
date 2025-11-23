@@ -341,7 +341,7 @@ const runDailyBroadcast = async (bot) => {
     // 4. PREPARE AND BROADCAST NEW MESSAGE (Now that the state is active)
     const uniqueCallbackData = `${CLAIM_CALLBACK_DATA}_${Date.now()}`;
     // This line correctly uses the updated/reaffirmed bonusAmount from the 'campaign' document.
-    const buttonText = `Click to Claim ${campaign.bonusAmount} Birr Bonus`; 
+    const buttonText = `የ ${campaign.bonusAmount} ብር ቦነስ ለማግኘት ይጫኑ`; 
 
     const replyMarkup = {
         inline_keyboard: [[{ text: buttonText, callback_data: uniqueCallbackData }]]
