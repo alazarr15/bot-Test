@@ -1,92 +1,113 @@
 // utils/broadcastUtils.js
 const User = require('../Model/user');
-const Announcement = require('../Model/announcement'); // Assumed path: ../models/announcement
+const Announcement = require('../Model/announcement'); 
 
-// Helper for adding delay (already in broadcast_message.js)
+// Helper for adding delay
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // =========================================================================
-// 1. ASYNCHRONOUS BROADCAST JOB 🚀
+// 1. FAST BATCH BROADCAST JOB 🚀 (OPTIMIZED)
 // =========================================================================
 const startBroadcastJob = async (bot, jobPayload) => {
     const { message, replyMarkup } = jobPayload;
-    // NOTE: This utility currently does not support image sending easily since we 
-    // don't have the image file buffer in this context. It only supports text + buttons.
-    // If you need images, we'll need to save the image to disk or upload to Telegram first.
-
-    console.log(`[LIMITED BROADCAST START] Job started for message: "${message.substring(0, 30)}..."`);
+    console.log(`[FAST BROADCAST START] Job started for message: "${message.substring(0, 30)}..."`);
 
     try {
-        // Fetch all users
+        // 1. Fetch only necessary fields (lean query)
         const users = await User.find({}, 'telegramId');
+        const totalUsers = users.length;
+        console.log(`[FAST BROADCAST] Found ${totalUsers} users. Starting batch send...`);
         
         let successCount = 0;
+        
+        // --- BATCH CONFIGURATION ---
+        const BATCH_SIZE = 25; // Send 25 messages concurrently
+        const BATCH_DELAY = 1050; // Wait 1.05 seconds between batches (Safety buffer)
 
-        for (const user of users) {
-            try {
-                const extra = { 
-                    parse_mode: 'Markdown',
-                    ...(replyMarkup && { reply_markup: replyMarkup }) 
-                };
-
-                const sentMessage = await bot.telegram.sendMessage(user.telegramId, message, extra);
-                
-                // CRITICAL: Log the message for later deletion
-                await Announcement.create({
-                    userId: user.telegramId,
-                    messageId: sentMessage.message_id,
-                    messageContent: message, // Use messageContent as the key for the whole campaign
-                    sentAt: new Date(), 
-                });
-                successCount++;
-            } catch (error) {
-                const errorMessage = error.message || String(error);
-                // Handle 403 Forbidden (Bot blocked) and 429 (Rate Limit)
-                if (errorMessage.includes('429') || errorMessage.includes('Too Many Requests')) {
-                    await sleep(5000); // Pause for 5 seconds on rate limit
-                }
-            }
+        // 2. Loop through users in chunks
+        for (let i = 0; i < totalUsers; i += BATCH_SIZE) {
+            const batch = users.slice(i, i + BATCH_SIZE);
             
-            await sleep(50); // Delay for Telegram API limits
+            // Create an array of promises for this batch
+            const batchPromises = batch.map(async (user) => {
+                try {
+                    const extra = { 
+                        parse_mode: 'Markdown',
+                        ...(replyMarkup && { reply_markup: replyMarkup }) 
+                    };
+
+                    // Send Message
+                    const sentMessage = await bot.telegram.sendMessage(user.telegramId, message, extra);
+                    
+                    // CRITICAL: Log to DB for future deletion (Done concurrently)
+                    await Announcement.create({
+                        userId: user.telegramId,
+                        messageId: sentMessage.message_id,
+                        messageContent: message,
+                        sentAt: new Date(), 
+                    });
+                    
+                    return true; // Success
+                } catch (error) {
+                    const errorMessage = error.message || String(error);
+                    // Handle blocked users (403) silently, log others
+                    if (!errorMessage.includes('403') && !errorMessage.includes('blocked')) {
+                        console.error(`Failed to send to ${user.telegramId}: ${errorMessage}`);
+                    }
+                    return false; // Failed
+                }
+            });
+
+            // 3. Execute the batch (Parallel execution)
+            const results = await Promise.all(batchPromises);
+            
+            // Count successes
+            successCount += results.filter(res => res === true).length;
+
+            // Log progress every 500 users
+            if ((i + BATCH_SIZE) % 500 === 0) {
+                console.log(`🚀 Progress: ${Math.min(i + BATCH_SIZE, totalUsers)}/${totalUsers} processed...`);
+            }
+
+            // 4. Rate Limit Sleep (Wait 1 second after every batch of 25)
+            if (i + BATCH_SIZE < totalUsers) {
+                await sleep(BATCH_DELAY);
+            }
         }
 
-        console.log(`[LIMITED BROADCAST COMPLETE] Sent: ${successCount}`);
+        console.log(`[FAST BROADCAST COMPLETE] Sent: ${successCount}/${totalUsers}`);
         return successCount;
 
     } catch (error) {
-        console.error('❌ CRITICAL JOB ERROR during limited broadcast process:', error);
+        console.error('❌ CRITICAL JOB ERROR during fast broadcast:', error);
         return 0;
     }
 };
 
 
 // =========================================================================
-// 2. ASYNCHRONOUS DELETION JOB 🗑️
+// 2. ASYNCHRONOUS DELETION JOB 🗑️ (Keep as is, logic is fine)
 // =========================================================================
 const startDeleteJob = async (bot, messageContent) => {
     console.log(`[LIMITED DELETE START] Deletion job started for: "${messageContent.substring(0, 30)}..."`);
     
     try {
-        // Find all announcements matching the campaign's message content
         const announcementsToDelete = await Announcement.find({ messageContent });
         let successCount = 0;
 
+        // Deletion can remain sequential or be batched similarly if speed is needed later
         for (const ann of announcementsToDelete) {
             try {
-                // --- TELEGRAM API CALL ---
                 await bot.telegram.deleteMessage(ann.userId, ann.messageId);
-                // -------------------------
                 successCount++;
             } catch (error) {
-                // Ignore errors like "message to delete not found" or "bot was blocked"
+                // Ignore errors
             }
-            await sleep(50); 
+            await sleep(40); // Small delay to be safe
         }
         
-        // CRITICAL STEP: DELETE DB RECORDS 
         const dbDeleteResult = await Announcement.deleteMany({ messageContent });
-        console.log(`[LIMITED DELETE COMPLETE] DB cleanup successful. Removed ${dbDeleteResult.deletedCount} records.`);
-        console.log(`[LIMITED DELETE COMPLETE] Job finished. Deleted in Telegram: ${successCount}`);
+        console.log(`[LIMITED DELETE COMPLETE] DB cleanup: ${dbDeleteResult.deletedCount}, Telegram Delete: ${successCount}`);
         
     } catch (error) {
         console.error('❌ CRITICAL JOB ERROR during mass deletion process:', error);
@@ -95,17 +116,14 @@ const startDeleteJob = async (bot, messageContent) => {
 
 
 const rewardBonusBalance = async (telegramId, amount) => {
-    // Atomically update DB to ensure correct counting
     const user = await User.findOneAndUpdate(
         { telegramId }, 
-        { $inc: { bonus_balance: amount } }, // Target bonus_balance
-        { new: true, select: 'bonus_balance' } // Return the updated document
+        { $inc: { bonus_balance: amount } }, 
+        { new: true, select: 'bonus_balance' } 
     );
 
     if (user) {
-        // You may want to update Redis here as well if you cache bonus_balance
-        // await redis.set(`userBonusBalance:${telegramId}`, user.bonus_balance.toString(), { EX: 60 });
-        console.log(`[REWARD] User ${telegramId} rewarded ${amount} Birr bonus. New balance: ${user.bonus_balance}`);
+        console.log(`[REWARD] User ${telegramId} rewarded ${amount}. New balance: ${user.bonus_balance}`);
         return true;
     }
     return false;
