@@ -11,7 +11,7 @@ const { startDeleteJob } = require('../utils/broadcastUtils'); // ADD THIS
 const { CLAIM_CALLBACK_DATA } = require('./limitedBonusScheduler.js'); // ADD THIS (To match the claim key)
 const LimitedCampaign = require('../Model/limitedCampaign'); // ADD THIS
 const { rewardBonusBalance } = require('../utils/broadcastUtils.js'); // ADD THIS (or wherever you put the reward function)
-
+const BonusClaimLog = require('./models/BonusClaimLog');
 
 
 const fs = require('fs'); // ADD THIS
@@ -681,7 +681,21 @@ if (data.startsWith(CLAIM_CALLBACK_DATA)) {
     
     // SUCCESS PATH: User claimed the bonus
     console.log(`[ATOMIC SUCCESS] User ${telegramId} claimed bonus. New ClaimsCount: ${result.claimsCount}`);
-
+   
+   
+     try {
+        await BonusClaimLog.create({
+            telegramId: telegramId,
+            bonusAmount: result.bonusAmount, // Use the bonus amount from the campaign result
+            campaignKey: result.campaignKey // Should be 'DAILY_BONUS'
+        });
+        console.log(`[LOGGING SUCCESS] Claim logged for user ${telegramId}.`);
+    } catch (logError) {
+        console.error(`[LOGGING FAIL] Failed to create claim log for user ${telegramId}: ${logError.message}`);
+        // IMPORTANT: We log the error but proceed with the reward, 
+        // as the atomic claim and reward are more critical.
+    }
+    
     // 4. REWARD USER
     const rewardSuccess = await rewardBonusBalance(telegramId, result.bonusAmount);
     console.log(`[REWARD] User ${telegramId} reward success: ${rewardSuccess}`);
@@ -712,13 +726,26 @@ if (data.startsWith(CLAIM_CALLBACK_DATA)) {
         }
         
         // 6. SUCCESS RESPONSE (Not the final claim)
+        const playReplyMarkup = {
+            inline_keyboard: [
+                // Make sure 'play' is the exact callback your handler uses
+                [{ text: "🎮 Play Now!", callback_data: 'play' }] 
+            ]
+        };
         await ctx.answerCbQuery(`✅ Success! You received ${result.bonusAmount} Birr bonus!`, { show_alert: true });
         
         // Remove button for the claiming user
         await ctx.editMessageReplyMarkup(null).catch((e) => console.log(`[CLEANUP FAIL] Failed to remove button after success: ${e.message}`)); 
         
         console.log(`[RESPONSE] Sent success message to user ${telegramId}. Remaining: ${result.claimLimit - result.claimsCount}`);
-        return ctx.reply(`✅ Success! You received **${result.bonusAmount} Birr** bonus! Only **${result.claimLimit - result.claimsCount}** spots remain.`, { parse_mode: 'Markdown' });
+        // NEW LINE:
+return ctx.reply(
+    `✅ Success! You received **${result.bonusAmount} Birr** bonus! Only **${result.claimLimit - result.claimsCount}** spots remain. What next?`, 
+    { 
+        parse_mode: 'Markdown',
+        reply_markup: playReplyMarkup // <-- Attach the button here
+    }
+);
 
     } else {
         console.error(`[REWARD FAIL] Could not reward user ${telegramId}.`);
