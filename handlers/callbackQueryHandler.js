@@ -726,12 +726,11 @@ if (data.startsWith(CLAIM_CALLBACK_DATA)) {
         }
         
         // 6. SUCCESS RESPONSE (Not the final claim)
-        const playReplyMarkup = {
-            inline_keyboard: [
-                // Make sure 'play' is the exact callback your handler uses
-                [{ text: "🎮 Play Now!", callback_data: 'play' }] 
-            ]
-        };
+       const playReplyMarkup = {
+            inline_keyboard: [
+                [{ text: "🎮 Play Now!", callback_data: 'Play' }] 
+            ]
+        };
         await ctx.answerCbQuery(`✅ Success! You received ${result.bonusAmount} Birr bonus!`, { show_alert: true });
         
         // Remove button for the claiming user
@@ -739,14 +738,15 @@ if (data.startsWith(CLAIM_CALLBACK_DATA)) {
         
         console.log(`[RESPONSE] Sent success message to user ${telegramId}. Remaining: ${result.claimLimit - result.claimsCount}`);
         // NEW LINE:
-return ctx.reply(
-    `✅ Success! You received **${result.bonusAmount} Birr** bonus! Only **${result.claimLimit - result.claimsCount}** spots remain. What next?`, 
-    { 
-        parse_mode: 'Markdown',
-        reply_markup: playReplyMarkup // <-- Attach the button here
-    }
-);
-
+       return ctx.reply(
+            `✅ Success! You received **${result.bonusAmount} Birr** bonus! Only **${result.claimLimit - result.claimsCount}** spots remain. What next?`, 
+            { 
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: playReplyMarkup.inline_keyboard
+                }
+            }
+        );
     } else {
         console.error(`[REWARD FAIL] Could not reward user ${telegramId}.`);
         await ctx.answerCbQuery('🚫 Error rewarding bonus. Please contact support.', { show_alert: true });
