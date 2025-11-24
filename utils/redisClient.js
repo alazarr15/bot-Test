@@ -1,25 +1,19 @@
 // redisClient.js
-const { createClient } = require("redis");
+const { Redis } = require("@upstash/redis");
 
-const redisClient = createClient({
-  url: process.env.REDIS_REST_URL, // your Upstash REST URL
-  username: process.env.REDIS_USERNAME, // optional, if provided by Upstash
-  password: process.env.REDIS_PASSWORD, // your Upstash REST token
-  socket: {
-    tls: true, // REST uses HTTPS, so TLS is true
-  },
-});
-
-redisClient.on("error", (err) => {
-  console.error("❌ Redis Client Error:", err);
+const redisClient = new Redis({
+  url: process.env.REDIS_REST_URL, // Upstash REST URL, e.g., https://<id>.upstash.io
+  token: process.env.REDIS_REST_TOKEN, // Upstash REST token
 });
 
 (async () => {
   try {
-    await redisClient.connect();
-    console.log("✅ Redis connected via REST");
+    // Test connection
+    await redisClient.set("test", "hello");
+    const value = await redisClient.get("test");
+    console.log("✅ Redis connected via REST. Test value:", value);
   } catch (err) {
-    console.error("❌ Redis connection failed:", err);
+    console.error("❌ Redis REST connection failed:", err);
   }
 })();
 
