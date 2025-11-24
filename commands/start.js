@@ -13,7 +13,7 @@ module.exports = function (bot) {
       // ✅ Rate limit: 1 request per second per user
       await userRateLimiter.consume(telegramId);
 
-      // ✅ Rate limit: 200 requests per second globally
+      // ✅ Rate limit: 200 requests per second globall
       await globalRateLimiter.consume("global");
 
       await ctx.sendChatAction("upload_photo");
