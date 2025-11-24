@@ -454,10 +454,10 @@ if (data.startsWith("guide_")) {
 
                         inline_keyboard: [
 
-                            [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://bossbingo.netlify.app/?user=${telegramId}&game=10` } }],
-                            [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://bossbingo.netlify.app/?user=${telegramId}&game=10` } }],
-                            [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://bossbingo.netlify.app/?user=${telegramId}&game=10` } }],
-                            [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://bossbingo.netlify.app/?user=${telegramId}&game=10` } }]
+                            [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://frontendbingo.netlify.app/?user=${telegramId}&game=10` } }],
+                            [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://frontendbingo.netlify.app/?user=${telegramId}&game=10` } }],
+                            [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://frontendbingo.netlify.app/?user=${telegramId}&game=10` } }],
+                            [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://frontendbingo.netlify.app/?user=${telegramId}&game=10` } }]
                         ]
 
                     }
