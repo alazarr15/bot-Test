@@ -11,7 +11,7 @@ const { startDeleteJob } = require('../utils/broadcastUtils'); // ADD THIS
 const { CLAIM_CALLBACK_DATA } = require('./limitedBonusScheduler.js'); // ADD THIS (To match the claim key)
 const LimitedCampaign = require('../Model/limitedCampaign'); // ADD THIS
 const { rewardBonusBalance } = require('../utils/broadcastUtils.js'); // ADD THIS (or wherever you put the reward function)
-const BonusClaimLog = require('./models/BonusClaimLog');
+const BonusClaimLog = require('../Model/BonusClaimLog');
 
 
 const fs = require('fs'); // ADD THIS
