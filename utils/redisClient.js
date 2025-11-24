@@ -4,7 +4,7 @@ const { createClient } = require("redis");
 const redisClient = createClient({
   url: process.env.REDIS_URL,
   socket: {
-    tls: false,
+    tls: true,
     rejectUnauthorized: false, // sometimes needed for Upstash TLS
   },
 });
