@@ -2,7 +2,7 @@
 const { Redis } = require("redis");
 
 const redisClient = new Redis({
-  url: process.env.REDIS_REST_URL, // Upstash REST URL, e.g., https://<id>.upstash.io
+  url: process.env.REDIS_REST_URL, // Upstash REST URL, e.g., https://
   token: process.env.REDIS_REST_TOKEN, // Upstash REST token
 });
 
