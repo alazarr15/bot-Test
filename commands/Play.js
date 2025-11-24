@@ -32,7 +32,7 @@ if (!user || !user.phoneNumber) {
           [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://bossbingo.netlify.app/?user=${telegramId}&game=10` } }],
           [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://bossbingo.netlify.app/?user=${telegramId}&game=10` } }],
           [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://bossbingo.netlify.app/?user=${telegramId}&game=10` } }],
-          [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://bossbingo.netlify.app/?user=${telegramId}&game=10` } }]
+          [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://frontend.bingoogame.com/?user=${telegramId}&game=10` } }]
         ]
       }
     });
