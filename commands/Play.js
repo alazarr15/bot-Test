@@ -30,9 +30,9 @@ if (!user || !user.phoneNumber) {
       reply_markup: {
         inline_keyboard: [
           [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://frontendbingo.netlify.app/?user=${telegramId}&game=10` } }],
-          [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://frontendbingo.netlify.app/?user=${telegramId}&game=10` } }],
-          [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://frontendbingo.netlify.app/?user=${telegramId}&game=10` } }],
-          [{ text: "🎱 Play 10 Birr 💸", web_app: { url: `https://frontendbingo.netlify.app/?user=${telegramId}&game=10` } }]
+          [{ text: "🎱 Play 20 Birr 💸", web_app: { url: `https://frontendbingo.netlify.app/?user=${telegramId}&game=20` } }],
+          [{ text: "🎱 Play 50 Birr 💸", web_app: { url: `https://frontendbingo.netlify.app/?user=${telegramId}&game=50` } }],
+          [{ text: "🎱 Play 100 Birr 💸", web_app: { url: `https://frontendbingo.netlify.app/?user=${telegramId}&game=100` } }]
         ]
       }
     });
