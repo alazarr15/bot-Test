@@ -1,4 +1,7 @@
 // handlers/callbackQueryHandler.js
+require("dotenv").config();
+ // Default value, will be overridden by DB if available
+
 const User = require("../Model/user");
 const Withdrawal = require("../Model/withdrawal");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
@@ -127,6 +130,7 @@ const telebirrWithdrawalQueue = [];
 // };
 module.exports = function (bot) {
    //processQueue(bot);
+    let bank  = process.env.Bank;
 
     bot.on("callback_query", async (ctx) => {
         const telegramId = ctx.from.id;
@@ -534,7 +538,7 @@ if (depositState.step !== "selectMethod" || !depositState.amount) {
 የኢትዮጵያ ንግድ ባንክ አካውንት
 
 \`\`\`
-1000454544246
+${bank}
 \`\`\`
 
 \`\`\`

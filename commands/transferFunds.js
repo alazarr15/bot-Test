@@ -1,6 +1,7 @@
 const User = require("../Model/user");
 const { userRateLimiter, globalRateLimiter } = require("../Limit/global");
 const { clearAllFlows } = require("../utils/flowUtils");
+const { updateUserCache } = require("../utils/updateUserCache");
 
 module.exports = function (bot) {
     bot.command("transfer_funds", async (ctx) => {
