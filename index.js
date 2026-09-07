@@ -49,7 +49,10 @@ app.listen(PORT, async () => {
       console.log("🤖 Bot is running locally using LONG POLLING!");
     } else {
       // Production Webhook setup
-      const url = `${process.env.WEBHOOK_URL}/webhook`;
+      const webhookBaseUrl = process.env.WEBHOOK_URL
+        .replace(/\/+$/, '')
+        .replace(/\/webhook$/, '');
+      const url = `${webhookBaseUrl}/webhook`;
       const result = await bot.telegram.setWebhook(url);
       
       if (result) {
