@@ -68,5 +68,11 @@ app.listen(PORT, async () => {
 });
 
 // Enable graceful stop for Telegraf/Node
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));
+const stopBot = (signal) => {
+  if (bot.polling || bot.webhookServer) {
+    bot.stop(signal);
+  }
+};
+
+process.once('SIGINT', () => stopBot('SIGINT'));
+process.once('SIGTERM', () => stopBot('SIGTERM'));
