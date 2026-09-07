@@ -2,8 +2,7 @@ require("dotenv").config();
 const mongoose = require("mongoose");
 const express = require("express");
 const bot = require("./bot"); // import your bot instance
-const { startLimitedBonusScheduler } = require('./handlers/limitedBonusScheduler'); // ADD THIS (Create this file next)
-
+const { startLimitedBonusScheduler } = require('./handlers/limitedBonusScheduler');
 
 mongoose.connect(process.env.MONGODB_URI, {})
   .then(() => console.log("✅ Connected to MongoDB"))
@@ -11,6 +10,7 @@ mongoose.connect(process.env.MONGODB_URI, {})
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const IS_DEV = process.env.NODE_ENV === 'development' || !process.env.WEBHOOK_URL;
 
 app.use(express.json()); // parse incoming JSON body
 
@@ -19,15 +19,14 @@ app.get("/", (req, res) => {
   res.send("🤖 Telegram bot is running.");
 });
 
-// Webhook endpoint to receive updates from Telegram
+// Webhook endpoint (Only active in production)
 app.post("/webhook", async (req, res) => {
   try {
     await bot.handleUpdate(req.body);
     res.sendStatus(200);
   } catch (err) {
     if (err.response && err.response.error_code === 403) {
-      // Bot blocked by user — just log and respond 200 (to avoid Telegram retry)
-      console.warn(`⚠️ Update from blocked user or forbidden chat. Ignoring. Error: ${err.description || err.message}`);
+      console.warn(`⚠️ Update from blocked user or forbidden chat. Ignoring.`);
       res.sendStatus(200);
     } else {
       console.error("❌ Error handling update:", err);
@@ -39,23 +38,35 @@ app.post("/webhook", async (req, res) => {
 app.listen(PORT, async () => {
   console.log(`✅ Express server listening on port ${PORT}`);
 
-  // Set webhook URL on Telegram
   try {
-    const url = process.env.WEBHOOK_URL;  // e.g. https://yourdomain.com/webhook
-    if (!url) {
-      console.warn("⚠️ WEBHOOK_URL env variable not set. Please set it to your HTTPS webhook URL.");
-      return;
+    if (IS_DEV) {
+      // 1. Clear active webhook on Telegram servers
+      await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+      console.log("🧹 Deleted active Webhook for local development.");
+
+      // 2. Launch long polling locally
+      bot.launch();
+      console.log("🤖 Bot is running locally using LONG POLLING!");
+    } else {
+      // Production Webhook setup
+      const url = `${process.env.WEBHOOK_URL}/webhook`;
+      const result = await bot.telegram.setWebhook(url);
+      
+      if (result) {
+        console.log("✅ Webhook set successfully:", url);
+      } else {
+        console.error("❌ Failed to set webhook");
+      }
     }
 
-    const result = await bot.telegram.setWebhook(url);
-    if (result) {
-      console.log("✅ Webhook set successfully:", url);
-    } else {
-      console.error("❌ Failed to set webhook");
-    }
-        startLimitedBonusScheduler(bot);
+    // Start background schedulers
+    startLimitedBonusScheduler(bot);
 
   } catch (err) {
-    console.error("❌ Error setting webhook:", err);
+    console.error("❌ Error during bot initialization:", err);
   }
 });
+
+// Enable graceful stop for Telegraf/Node
+process.once('SIGINT', () => bot.stop('SIGINT'));
+process.once('SIGTERM', () => bot.stop('SIGTERM'));
